@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+
+    container_name: url-shortener-db
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    ports:
+      - '5433:5432'
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
