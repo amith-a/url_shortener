@@ -42,7 +42,7 @@ export class UrlService {
         return createdUrl;
       } catch (err: unknown) {
         const pgError = err as { code?: string };
-        if (pgError.code === PG_UNIQUE_VIOLATION && attempt < MAX_ATTEMPTS - 1) {
+        if (pgError.code === PG_UNIQUE_VIOLATION) {
           logger.warn({ shortCode, attempt: attempt + 1 }, 'Short code collision detected on DB insert, retrying');
           continue;
         }

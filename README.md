@@ -18,6 +18,8 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 | **Logging** | Pino & Pino HTTP |
 | **Security** | Helmet, CORS |
 | **Containerization** | Docker Compose |
+| **Testing** | Vitest, Supertest |
+| **Code Coverage** | `@vitest/coverage-v8` |
 | **Code Quality** | ESLint, Prettier |
 
 ---
@@ -66,6 +68,9 @@ PostgreSQL Database
 │   ├── validators/        # Zod request validation schemas
 │   ├── app.ts             # Express application configuration
 │   └── server.ts          # Application entry point & server bootstrap
+├── tests/
+│   ├── unit/              # Unit tests for services, repositories, validators & middleware
+│   └── integration/       # API integration tests using Supertest
 ├── docker-compose.yml     # Local PostgreSQL database container setup
 ├── .env.example           # Template for environment variables
 ├── eslint.config.mjs      # ESLint configuration
@@ -140,6 +145,26 @@ The server will start listening at `http://localhost:3000`.
 
 ---
 
+## 🧪 Testing & Code Coverage
+
+The project uses **Vitest** and **Supertest** for fast unit and API integration testing.
+
+```bash
+# Run all tests (unit + integration)
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run API integration tests only
+npm run test:integration
+
+# Run tests with V8 code coverage report
+npm run test:coverage
+```
+
+---
+
 ## 📜 Available Scripts
 
 | Command | Description |
@@ -150,6 +175,10 @@ The server will start listening at `http://localhost:3000`.
 | `npm run migrate:up` | Runs all pending database migrations |
 | `npm run migrate:down` | Rolls back the latest applied migration |
 | `npm run migrate:create <name>` | Creates a new TypeScript migration file |
+| `npm test` | Runs full test suite (unit + integration) |
+| `npm run test:unit` | Runs unit tests only (`tests/unit`) |
+| `npm run test:integration` | Runs API integration tests only (`tests/integration`) |
+| `npm run test:coverage` | Generates V8 code coverage report |
 | `npm run lint` | Runs ESLint type and style checks |
 | `npm run lint:fix` | Automatically fixes ESLint warnings and errors |
 | `npm run format` | Formats code with Prettier |
@@ -167,11 +196,11 @@ The server will start listening at `http://localhost:3000`.
 
 ---
 
-## 🛣️ API Endpoints (Planned)
+## 🛣️ API Endpoints
 
-* `POST /api/v1/urls` - Shorten a long URL
-* `GET /:shortCode` - Redirect to original target URL (302 Found)
-* `GET /api/v1/urls/:id/stats` - Retrieve click analytics and URL metadata
+* `POST /api/v1/urls` - Shorten a long URL (returns `201 Created` with short code)
+* `GET /api/v1/urls/:shortCode` - Redirect to original target URL (`302 Found` with `Cache-Control: no-cache`)
+
 
 ---
 
