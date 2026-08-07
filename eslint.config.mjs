@@ -12,5 +12,14 @@ export default defineConfig({
     tseslint.configs.recommended,
     eslintConfigPrettier,
   ],
+  rules: {
+    "no-console": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        argsIgnorePattern: "^_",
+      },
+    ],
+  },
   ignores: ['dist', 'node_modules'],
 })
