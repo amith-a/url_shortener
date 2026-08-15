@@ -247,7 +247,41 @@ npm run test:coverage
 
 ---
 
-#### 2. Redirect to Original URL *(Public)*
+#### 2. List User URLs *(Authentication Required)*
+`GET /api/v1/urls`
+
+**Query Parameters**:
+* `page` *(optional)*: Positive integer (default: `1`).
+* `limit` *(optional)*: Positive integer (default: `20`, max: `100`).
+
+**Responses**:
+* `200 OK`: Returns paginated list of URLs owned by the authenticated user in `created_at DESC, id DESC` order.
+  ```json
+  {
+    "data": [
+      {
+        "id": "uuid-1",
+        "shortCode": "myAlias",
+        "originalUrl": "https://example.com",
+        "createdAt": "2026-08-15T22:00:00.000Z",
+        "expiresAt": null,
+        "userId": "user-123"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1
+    }
+  }
+  ```
+* `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
+* `400 Bad Request`: Validation failure (invalid `page` or `limit` parameter).
+
+---
+
+#### 3. Redirect to Original URL *(Public)*
 `GET /api/v1/urls/:shortCode`
 
 **Responses**:
@@ -257,7 +291,7 @@ npm run test:coverage
 
 ---
 
-#### 3. Delete Short URL *(Authentication Required)*
+#### 4. Delete Short URL *(Authentication Required)*
 `DELETE /api/v1/urls/:id`
 
 **Responses**:

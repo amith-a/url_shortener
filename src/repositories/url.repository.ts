@@ -86,6 +86,42 @@ export class UrlRepository implements IUrlRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async listByUserId(
+    userId: string,
+    limit: number,
+    offset: number
+  ): Promise<UrlDto[]> {
+    const query = `
+      SELECT
+        id,
+        short_code,
+        original_url,
+        created_at,
+        expires_at,
+        user_id
+      FROM urls
+      WHERE user_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2 OFFSET $3;
+    `;
+
+    const result = await pool.query<UrlRow>(query, [userId, limit, offset]);
+
+    return result.rows.map((row) => this.mapToDto(row));
+  }
+
+  async countByUserId(userId: string): Promise<number> {
+    const query = `
+      SELECT COUNT(*)::int AS total
+      FROM urls
+      WHERE user_id = $1;
+    `;
+
+    const result = await pool.query<{ total: number }>(query, [userId]);
+
+    return result.rows[0]?.total ?? 0;
+  }
+
   private mapToDto(row: UrlRow): UrlDto {
     return {
       id: row.id,

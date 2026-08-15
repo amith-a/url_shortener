@@ -169,4 +169,60 @@ describe('UrlRepository', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('listByUserId', () => {
+    it('should query URLs filtered by user_id with ORDER BY created_at DESC, id DESC, LIMIT and OFFSET', async () => {
+      const mockRow: UrlRow = {
+        id: 'uuid-1',
+        short_code: 'abc12345',
+        original_url: 'https://example.com',
+        created_at: new Date(),
+        expires_at: null,
+        user_id: 'user-123',
+      };
+
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [mockRow],
+            command: 'SELECT',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<UrlRow>
+      );
+
+      const result = await repository.listByUserId('user-123', 20, 0);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('ORDER BY created_at DESC, id DESC'),
+        ['user-123', 20, 0]
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]?.userId).toBe('user-123');
+    });
+  });
+
+  describe('countByUserId', () => {
+    it('should query count of URLs for specified user_id', async () => {
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [{ total: 42 }],
+            command: 'SELECT',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<{ total: number }>
+      );
+
+      const count = await repository.countByUserId('user-123');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('COUNT(*)'),
+        ['user-123']
+      );
+      expect(count).toBe(42);
+    });
+  });
 });

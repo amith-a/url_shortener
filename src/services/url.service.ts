@@ -1,5 +1,6 @@
 import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto';
 import { UrlDto } from '../dto/url.dto';
+import { PaginatedResponseDto } from '../dto/paginated-response.dto';
 import { randomUUID } from 'node:crypto';
 import { generateShortCode } from '../utils/short-code';
 import { CreateUrlDto } from '../dto/create-url.dto';
@@ -118,6 +119,36 @@ export class UrlService {
     }
 
     logger.info({ id, userId }, 'Short URL deleted successfully');
+  }
+
+  async list(
+    userId: string,
+    page: number,
+    limit: number
+  ): Promise<PaginatedResponseDto<UrlDto>> {
+    const offset = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.repository.listByUserId(userId, limit, offset),
+      this.repository.countByUserId(userId),
+    ]);
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    logger.debug(
+      { userId, page, limit, total, totalPages, count: data.length },
+      'Listed user URLs successfully'
+    );
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async resolveShortCode(shortCode: string): Promise<string> {

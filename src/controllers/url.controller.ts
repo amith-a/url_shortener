@@ -4,6 +4,7 @@ import { ParamsDictionary } from 'express-serve-static-core';
 import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto';
 import type { UrlService } from '../services/url.service';
 import { GetUrlRequestDto } from '../dto/get-url-request.dto';
+import { ListUrlsQueryDto } from '../dto/list-urls-query.dto';
 
 export class UrlController {
   constructor(private readonly service: UrlService) {}
@@ -16,6 +17,21 @@ export class UrlController {
     const url = await this.service.create(req.body, userId);
 
     res.status(201).json(url);
+  }
+
+  async list(
+    req: Request<ParamsDictionary, unknown, unknown, any>,
+    res: Response
+  ): Promise<void> {
+    const query = req.query as ListUrlsQueryDto;
+    const userId = req.user!.id;
+    const result = await this.service.list(
+      userId,
+      query.page,
+      query.limit
+    );
+
+    res.status(200).json(result);
   }
 
   async delete(req: Request<{ id: string }>, res: Response): Promise<void> {

@@ -549,7 +549,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after Authorization / URL ownership & Delete URLs implementation._
+_Last updated: 2026-08-15, after Pagination / URL listing implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -586,6 +586,12 @@ POST /api/v1/urls
 ```
 
 Creates a short URL (requires authentication; stores `session.user.id`).
+
+```text
+GET /api/v1/urls
+```
+
+Returns paginated list of URLs owned by the authenticated user (requires authentication).
 
 ```text
 GET /api/v1/urls/:shortCode
@@ -762,17 +768,21 @@ Returns `204 No Content` when deleted by the URL owner. Returns `404 Not Found` 
 
 ---
 
-## Pagination
+## Pagination / URL Listing
 
-Not implemented yet.
+Implemented via:
 
-Planned functionality includes listing URLs with pagination.
+```text
+GET /api/v1/urls?page=1&limit=20
+```
 
-The exact endpoint and pagination strategy will be decided when this
-roadmap item is implemented.
+Requires authentication via `requireAuth` middleware. Returns paginated list of URLs owned by `req.user.id` ordered by `created_at DESC, id DESC`.
 
-Do not prematurely introduce cursor pagination unless the actual requirements
-justify it.
+Supported query parameters:
+- `page`: Positive integer (default `1`).
+- `limit`: Positive integer (default `20`, max `100`).
+
+Optimized with database compound index `idx_urls_user_id_created_at_id` on `urls (user_id, created_at DESC, id DESC)`.
 
 ---
 
@@ -957,7 +967,13 @@ Current roadmap:
    - Added atomic `deleteByIdAndUserId(id, userId)` repository query returning 204 No Content for owner deletion or 404 Not Found for non-owners/non-existent URLs.
    - Added unit and real PostgreSQL test database integration coverage.
 
-7. Pagination / URL listing
+7. ~~Pagination / URL listing~~
+   Done:
+   - Added authenticated URL listing (`GET /api/v1/urls`)
+   - Added user ownership filtering (`WHERE user_id = $1`)
+   - Added page/limit pagination (`page` default 1, `limit` default 20 max 100)
+   - Added compound database index `idx_urls_user_id_created_at_id`
+   - Added unit and real PostgreSQL test database integration coverage
 
 8. Redis caching
 
@@ -981,7 +997,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Pagination / URL listing
+Redis caching
 ```
 
 ---

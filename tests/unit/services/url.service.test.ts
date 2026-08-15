@@ -11,6 +11,8 @@ describe('UrlService', () => {
       create: vi.fn(),
       findByShortCode: vi.fn(),
       deleteByIdAndUserId: vi.fn(),
+      listByUserId: vi.fn(),
+      countByUserId: vi.fn(),
     };
 
     service = new UrlService(repository);
@@ -179,6 +181,80 @@ describe('UrlService', () => {
       await expect(
         service.deleteUrl('url-123', 'other-user')
       ).rejects.toThrow('Short URL not found');
+    });
+  });
+
+  describe('list', () => {
+    it('should call listByUserId and countByUserId and combine results into paginated response', async () => {
+      const mockDtos = [
+        {
+          id: 'url-1',
+          shortCode: 'code1',
+          originalUrl: 'https://example.com/1',
+          createdAt: new Date(),
+          expiresAt: null,
+          userId: 'user-123',
+        },
+        {
+          id: 'url-2',
+          shortCode: 'code2',
+          originalUrl: 'https://example.com/2',
+          createdAt: new Date(),
+          expiresAt: null,
+          userId: 'user-123',
+        },
+      ];
+
+      vi.mocked(repository.listByUserId).mockResolvedValueOnce(mockDtos);
+      vi.mocked(repository.countByUserId).mockResolvedValueOnce(45);
+
+      const result = await service.list('user-123', 2, 20);
+
+      expect(repository.listByUserId).toHaveBeenCalledWith('user-123', 20, 20);
+      expect(repository.countByUserId).toHaveBeenCalledWith('user-123');
+      expect(result).toEqual({
+        data: mockDtos,
+        pagination: {
+          page: 2,
+          limit: 20,
+          total: 45,
+          totalPages: 3,
+        },
+      });
+    });
+
+    it('should handle empty user results correctly with totalPages 0', async () => {
+      vi.mocked(repository.listByUserId).mockResolvedValueOnce([]);
+      vi.mocked(repository.countByUserId).mockResolvedValueOnce(0);
+
+      const result = await service.list('user-empty', 1, 20);
+
+      expect(result).toEqual({
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0,
+        },
+      });
+    });
+
+    it('should handle page beyond available data correctly', async () => {
+      vi.mocked(repository.listByUserId).mockResolvedValueOnce([]);
+      vi.mocked(repository.countByUserId).mockResolvedValueOnce(2);
+
+      const result = await service.list('user-123', 5, 20);
+
+      expect(result).toEqual({
+        data: [],
+        pagination: {
+          page: 5,
+          limit: 20,
+          total: 2,
+          totalPages: 1,
+        },
+      });
     });
   });
 

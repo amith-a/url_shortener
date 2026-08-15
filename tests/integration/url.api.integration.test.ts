@@ -245,6 +245,160 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
     });
   });
 
+  describe('GET /api/v1/urls (Protected Route & Pagination)', () => {
+    it('should return 401 Unauthorized for unauthenticated GET /api/v1/urls', async () => {
+      const response = await request(app).get('/api/v1/urls');
+      expect(response.status).toBe(401);
+    });
+
+    it('should return empty paginated response when authenticated user has no URLs', async () => {
+      const userEmpty = await registerAndLogin(
+        'emptyuser@example.com',
+        'Empty User'
+      );
+
+      const response = await request(app)
+        .get('/api/v1/urls')
+        .set('Cookie', userEmpty.cookies);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0,
+        },
+      });
+    });
+
+    it('should filter strictly by user ownership (User A cannot see User B URLs)', async () => {
+      const userA = await registerAndLogin('userA_list@example.com', 'User A');
+      const userB = await registerAndLogin('userB_list@example.com', 'User B');
+
+      await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/user-a-url-1' });
+
+      await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/user-a-url-2' });
+
+      await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userB.cookies)
+        .send({ originalUrl: 'https://example.com/user-b-url-1' });
+
+      const resA = await request(app)
+        .get('/api/v1/urls')
+        .set('Cookie', userA.cookies);
+
+      expect(resA.status).toBe(200);
+      expect(resA.body.pagination.total).toBe(2);
+      expect(resA.body.data).toHaveLength(2);
+      expect(
+        resA.body.data.every((url: { userId: string }) => url.userId === userA.user.id)
+      ).toBe(true);
+
+      const resB = await request(app)
+        .get('/api/v1/urls')
+        .set('Cookie', userB.cookies);
+
+      expect(resB.status).toBe(200);
+      expect(resB.body.pagination.total).toBe(1);
+      expect(resB.body.data).toHaveLength(1);
+      expect(resB.body.data[0].userId).toBe(userB.user.id);
+    });
+
+    it('should return URLs ordered by created_at DESC, id DESC (newest first)', async () => {
+      const userA = await registerAndLogin('user_order@example.com', 'Order User');
+
+      const res1 = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/first-created' });
+
+      const res2 = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/second-created' });
+
+      const listRes = await request(app)
+        .get('/api/v1/urls')
+        .set('Cookie', userA.cookies);
+
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.data[0].id).toBe(res2.body.id);
+      expect(listRes.body.data[1].id).toBe(res1.body.id);
+    });
+
+    it('should paginate correctly using page and limit query parameters', async () => {
+      const userA = await registerAndLogin('user_page@example.com', 'Page User');
+
+      for (let i = 1; i <= 3; i++) {
+        await request(app)
+          .post('/api/v1/urls')
+          .set('Cookie', userA.cookies)
+          .send({ originalUrl: `https://example.com/page-item-${i}` });
+      }
+
+      // Fetch page 1 with limit 2
+      const resPage1 = await request(app)
+        .get('/api/v1/urls?page=1&limit=2')
+        .set('Cookie', userA.cookies);
+
+      expect(resPage1.status).toBe(200);
+      expect(resPage1.body.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+      });
+      expect(resPage1.body.data).toHaveLength(2);
+
+      // Fetch page 2 with limit 2
+      const resPage2 = await request(app)
+        .get('/api/v1/urls?page=2&limit=2')
+        .set('Cookie', userA.cookies);
+
+      expect(resPage2.status).toBe(200);
+      expect(resPage2.body.pagination).toEqual({
+        page: 2,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+      });
+      expect(resPage2.body.data).toHaveLength(1);
+    });
+
+    it('should preserve requested page when requesting page beyond available data', async () => {
+      const userA = await registerAndLogin('user_beyond@example.com', 'Beyond User');
+
+      await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/one-item' });
+
+      const response = await request(app)
+        .get('/api/v1/urls?page=5&limit=20')
+        .set('Cookie', userA.cookies);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        data: [],
+        pagination: {
+          page: 5,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+        },
+      });
+    });
+  });
+
   describe('GET /api/v1/urls/:shortCode (Public Route)', () => {
     it('should allow public unauthenticated GET redirect (302 Found)', async () => {
       const userA = await registerAndLogin('userA@example.com', 'User A');

@@ -1,11 +1,10 @@
 import { RequestHandler } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
-import { ParsedQs } from 'qs';
 import { z } from 'zod';
 
 interface ValidationSchema<
   TParams extends ParamsDictionary = ParamsDictionary,
-  TQuery extends ParsedQs = ParsedQs,
+  TQuery = any,
   TBody = unknown,
 > {
   params?: z.ZodSchema<TParams>;
@@ -15,12 +14,12 @@ interface ValidationSchema<
 
 export function validate<
   TParams extends ParamsDictionary = ParamsDictionary,
-  TQuery extends ParsedQs = ParsedQs,
+  TQuery = any,
   TBody = unknown,
 >(
   schema: ValidationSchema<TParams, TQuery, TBody>
-): RequestHandler<TParams, unknown, TBody, TQuery> {
-  const handler: RequestHandler<TParams, unknown, TBody, TQuery> = async (
+): RequestHandler<TParams, unknown, TBody, any> {
+  const handler: RequestHandler<TParams, unknown, TBody, any> = async (
     req,
     _res,
     next
@@ -55,9 +54,27 @@ export function validate<
         parsedBody = result.data;
       }
 
-      if (parsedParams) req.params = parsedParams;
-      if (parsedQuery) req.query = parsedQuery;
-      if (parsedBody) req.body = parsedBody;
+      if (parsedParams) {
+        Object.defineProperty(req, 'params', {
+          value: parsedParams,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
+      }
+
+      if (parsedQuery) {
+        Object.defineProperty(req, 'query', {
+          value: parsedQuery,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
+      }
+
+      if (parsedBody) {
+        req.body = parsedBody;
+      }
 
       next();
     } catch (err) {

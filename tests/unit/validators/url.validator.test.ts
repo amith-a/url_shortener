@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getUrlSchema, urlSchema } from '../../../src/validators/url.validator';
+import { getUrlSchema, listUrlsQuerySchema, urlSchema } from '../../../src/validators/url.validator';
 
 describe('url.validator', () => {
   describe('urlSchema', () => {
@@ -76,6 +76,40 @@ describe('url.validator', () => {
 
       for (const shortCode of invalidCodes) {
         const result = getUrlSchema.safeParse({ shortCode });
+        expect(result.success).toBe(false);
+      }
+    });
+  });
+
+  describe('listUrlsQuerySchema', () => {
+    it('should set default page=1 and limit=20 when query parameters are omitted', () => {
+      const result = listUrlsQuerySchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ page: 1, limit: 20 });
+      }
+    });
+
+    it('should parse valid page and limit numbers from strings', () => {
+      const result = listUrlsQuerySchema.safeParse({ page: '2', limit: '50' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ page: 2, limit: 50 });
+      }
+    });
+
+    it('should reject invalid page and limit values', () => {
+      const invalidQueries = [
+        { page: '0' },
+        { page: '-1' },
+        { limit: '0' },
+        { limit: '101' },
+        { page: 'abc' },
+        { limit: 'xyz' },
+      ];
+
+      for (const query of invalidQueries) {
+        const result = listUrlsQuerySchema.safeParse(query);
         expect(result.success).toBe(false);
       }
     });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import { controller } from '../bootstrap/url.bootstrap';
 import { validate } from '../middleware/validate.middleware';
-import { getUrlSchema, urlSchema } from '../validators/url.validator';
+import { getUrlSchema, listUrlsQuerySchema, urlSchema } from '../validators/url.validator';
 import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -14,6 +14,15 @@ router.post(
     body: urlSchema,
   }),
   controller.create.bind(controller)
+);
+
+router.get(
+  '/',
+  requireAuth,
+  validate({
+    query: listUrlsQuerySchema,
+  }),
+  controller.list.bind(controller)
 );
 
 router.get(

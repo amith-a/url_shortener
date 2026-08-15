@@ -65,5 +65,11 @@ export const getUrlSchema = z.object({
     .regex(/^[A-Za-z0-9]+$/, 'Invalid short code'),
 });
 
+export const listUrlsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
 export type CreateShortUrlRequest = z.infer<typeof urlSchema>;
 export type GetUrlRequest = z.infer<typeof getUrlSchema>;
+
