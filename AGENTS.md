@@ -630,6 +630,7 @@ id
 original_url
 short_code
 created_at
+expires_at
 ```
 
 Current properties:
@@ -639,6 +640,7 @@ id           UUID / primary key
 original_url TEXT / NOT NULL
 short_code   VARCHAR(50) / UNIQUE / NOT NULL
 created_at   TIMESTAMPTZ / NOT NULL
+expires_at   TIMESTAMPTZ / NULL
 ```
 
 Schema changes must be made through migrations.
