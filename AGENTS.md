@@ -654,7 +654,7 @@ Current properties:
 ```text
 id           UUID / primary key
 original_url TEXT / NOT NULL
-short_code   VARCHAR(8) / UNIQUE / NOT NULL
+short_code   VARCHAR(50) / UNIQUE / NOT NULL
 created_at   TIMESTAMPTZ / NOT NULL
 ```
 
@@ -977,7 +977,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Custom aliases
+URL expiration
 ```
 
 ---
