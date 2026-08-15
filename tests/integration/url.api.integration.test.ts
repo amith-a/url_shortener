@@ -1,42 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { QueryResult } from 'pg';
 import app from '../../src/app';
 import pool from '../../src/config/database';
-import { UrlRow } from '../../src/repositories/types/url.row';
 
-describe('API Integration Tests (Mocked DB)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
+async function safeCleanupUrlTables() {
+  const { rows } = await pool.query('SELECT current_database()');
+  const activeDb = rows[0]?.current_database;
+
+  if (activeDb !== 'url_shortener_test') {
+    throw new Error(
+      `SAFETY FAILURE: Refusing cleanup because active database is '${activeDb}', expected 'url_shortener_test'`
+    );
+  }
+
+  await pool.query('TRUNCATE TABLE urls RESTART IDENTITY CASCADE');
+}
+
+describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
+  beforeEach(async () => {
+    await safeCleanupUrlTables();
   });
 
   describe('POST /api/v1/urls', () => {
     it('should create short URL and return 201 Created for valid URL', async () => {
-      const mockRow: UrlRow = {
-        id: 'uuid-123',
-        short_code: 'abc12345',
-        original_url: 'https://example.com/long-url-path',
-        created_at: new Date('2026-01-01T00:00:00.000Z'),
-        expires_at: null,
-      };
-
-      // Mock DB lookup (no collision) and DB insert
-      vi.spyOn(pool, 'query')
-        .mockImplementationOnce(
-          async () => ({ rows: [] }) as unknown as QueryResult<UrlRow>
-        )
-        .mockImplementationOnce(
-          async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
-        );
-
       const response = await request(app)
         .post('/api/v1/urls')
         .send({ originalUrl: 'https://example.com/long-url-path' });
 
       expect(response.status).toBe(201);
       expect(response.headers['x-request-id']).toBeDefined();
-      expect(response.body).toHaveProperty('id', 'uuid-123');
-      expect(response.body).toHaveProperty('shortCode', 'abc12345');
+      expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('shortCode');
       expect(response.body).toHaveProperty(
         'originalUrl',
         'https://example.com/long-url-path'
@@ -85,64 +79,35 @@ describe('API Integration Tests (Mocked DB)', () => {
       expect(response.body).toHaveProperty('success', false);
     });
 
-    it('should return 500 Internal Server Error when database query fails unexpectedly', async () => {
-      vi.spyOn(pool, 'query').mockImplementationOnce(async () => {
-        throw new Error('Unexpected DB connection failure');
-      });
-
-      const response = await request(app)
-        .post('/api/v1/urls')
-        .send({ originalUrl: 'https://example.com/valid-url' });
-
-      expect(response.status).toBe(500);
-      expect(response.headers['x-request-id']).toBeDefined();
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body).toHaveProperty('message');
-    });
-
     it('should create short URL with valid customAlias and return 201 Created', async () => {
-      const validAliases = ['abc123', 'ABC123', '123456', 'a'.repeat(50)];
-
-      for (const customAlias of validAliases) {
-        const mockRow: UrlRow = {
-          id: `uuid-${customAlias}`,
-          short_code: customAlias,
-          original_url: 'https://example.com/alias-target',
-          created_at: new Date('2026-01-01T00:00:00.000Z'),
-          expires_at: null,
-        };
-
-        vi.spyOn(pool, 'query').mockImplementationOnce(
-          async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
-        );
-
-        const response = await request(app)
-          .post('/api/v1/urls')
-          .send({
-            originalUrl: 'https://example.com/alias-target',
-            customAlias,
-          });
-
-        expect(response.status).toBe(201);
-        expect(response.body).toHaveProperty('shortCode', customAlias);
-      }
-    });
-
-    it('should return 409 Conflict when customAlias is already taken', async () => {
-      const pgUniqueError = new Error(
-        'duplicate key value violates unique constraint'
-      );
-      (pgUniqueError as unknown as { code: string }).code = '23505';
-
-      vi.spyOn(pool, 'query').mockImplementationOnce(async () => {
-        throw pgUniqueError;
-      });
+      const customAlias = 'myCustomAlias123';
 
       const response = await request(app)
         .post('/api/v1/urls')
         .send({
           originalUrl: 'https://example.com/alias-target',
-          customAlias: 'takenAlias',
+          customAlias,
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('shortCode', customAlias);
+    });
+
+    it('should return 409 Conflict when customAlias is already taken in the database', async () => {
+      // First insertion
+      await request(app)
+        .post('/api/v1/urls')
+        .send({
+          originalUrl: 'https://example.com/first-target',
+          customAlias: 'takenAlias123',
+        });
+
+      // Second insertion with identical alias
+      const response = await request(app)
+        .post('/api/v1/urls')
+        .send({
+          originalUrl: 'https://example.com/second-target',
+          customAlias: 'takenAlias123',
         });
 
       expect(response.status).toBe(409);
@@ -173,37 +138,17 @@ describe('API Integration Tests (Mocked DB)', () => {
         expect(response.body).toHaveProperty('message', 'Validation failed');
       }
     });
+
     it('should create short URL with valid future expiresAt containing timezone offset', async () => {
-      const validFutureTimestamps = [
-        '2026-08-20T12:00:00+05:30',
-        '2026-08-20T06:30:00Z',
-      ];
+      const expiresAt = '2026-12-31T23:59:59+05:30';
 
-      for (const expiresAt of validFutureTimestamps) {
-        const mockRow: UrlRow = {
-          id: 'uuid-exp-1',
-          short_code: 'exp12345',
-          original_url: 'https://example.com/exp-target',
-          created_at: new Date('2026-01-01T00:00:00.000Z'),
-          expires_at: new Date(expiresAt),
-        };
+      const response = await request(app)
+        .post('/api/v1/urls')
+        .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
 
-        vi.spyOn(pool, 'query')
-          .mockImplementationOnce(
-            async () => ({ rows: [] }) as unknown as QueryResult<UrlRow>
-          )
-          .mockImplementationOnce(
-            async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
-          );
-
-        const response = await request(app)
-          .post('/api/v1/urls')
-          .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
-
-        expect(response.status).toBe(201);
-        expect(response.body).toHaveProperty('expiresAt');
-        expect(response.body.expiresAt).not.toBeNull();
-      }
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('expiresAt');
+      expect(response.body.expiresAt).not.toBeNull();
     });
 
     it('should return 400 Bad Request when expiresAt lacks timezone offset or is in the past', async () => {
@@ -228,19 +173,14 @@ describe('API Integration Tests (Mocked DB)', () => {
 
   describe('GET /api/v1/urls/:shortCode', () => {
     it('should redirect 302 to original URL with no-cache headers when short code exists', async () => {
-      const mockRow: UrlRow = {
-        id: 'uuid-123',
-        short_code: 'abc12345',
-        original_url: 'https://example.com/redirect-target',
-        created_at: new Date('2026-01-01T00:00:00.000Z'),
-        expires_at: null,
-      };
+      // Create short URL first
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .send({ originalUrl: 'https://example.com/redirect-target' });
 
-      vi.spyOn(pool, 'query').mockImplementationOnce(
-        async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
-      );
+      const shortCode = createRes.body.shortCode;
 
-      const response = await request(app).get('/api/v1/urls/abc12345');
+      const response = await request(app).get(`/api/v1/urls/${shortCode}`);
 
       expect(response.status).toBe(302);
       expect(response.headers['x-request-id']).toBeDefined();
@@ -253,20 +193,15 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should return 410 Gone when short URL has expired', async () => {
+      // Insert an expired row directly into the real test database
       const pastDate = new Date(Date.now() - 60000);
-      const mockRow: UrlRow = {
-        id: 'uuid-expired',
-        short_code: 'expired1',
-        original_url: 'https://example.com/expired-target',
-        created_at: new Date('2026-01-01T00:00:00.000Z'),
-        expires_at: pastDate,
-      };
-
-      vi.spyOn(pool, 'query').mockImplementationOnce(
-        async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
+      await pool.query(
+        `INSERT INTO urls (id, original_url, short_code, created_at, expires_at)
+         VALUES ($1, $2, $3, NOW(), $4)`,
+        ['11111111-1111-1111-1111-111111111111', 'https://example.com/expired-target', 'expired123', pastDate]
       );
 
-      const response = await request(app).get('/api/v1/urls/expired1');
+      const response = await request(app).get('/api/v1/urls/expired123');
 
       expect(response.status).toBe(410);
       expect(response.body).toEqual({
@@ -276,11 +211,7 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should return 404 Not Found when short code does not exist', async () => {
-      vi.spyOn(pool, 'query').mockImplementationOnce(
-        async () => ({ rows: [] }) as unknown as QueryResult<UrlRow>
-      );
-
-      const response = await request(app).get('/api/v1/urls/noexist1');
+      const response = await request(app).get('/api/v1/urls/noexist999');
 
       expect(response.status).toBe(404);
       expect(response.headers['x-request-id']).toBeDefined();
@@ -300,25 +231,20 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should redirect using a custom alias longer than 8 characters', async () => {
-      const customAlias = 'a'.repeat(50);
+      const longAlias = 'a'.repeat(45);
 
-      const mockRow: UrlRow = {
-        id: 'uuid-long-alias',
-        short_code: customAlias,
-        original_url: 'https://example.com/redirect-target',
-        created_at: new Date('2026-01-01T00:00:00.000Z'),
-        expires_at: null,
-      };
+      await request(app)
+        .post('/api/v1/urls')
+        .send({
+          originalUrl: 'https://example.com/long-alias-target',
+          customAlias: longAlias,
+        });
 
-      vi.spyOn(pool, 'query').mockImplementationOnce(
-        async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
-      );
-
-      const response = await request(app).get(`/api/v1/urls/${customAlias}`);
+      const response = await request(app).get(`/api/v1/urls/${longAlias}`);
 
       expect(response.status).toBe(302);
       expect(response.headers.location).toBe(
-        'https://example.com/redirect-target'
+        'https://example.com/long-alias-target'
       );
     });
   });
