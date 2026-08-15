@@ -1,5 +1,6 @@
 import { RequestHandler } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 import { z } from 'zod';
 
 interface ValidationSchema<
@@ -18,8 +19,8 @@ export function validate<
   TBody = unknown,
 >(
   schema: ValidationSchema<TParams, TQuery, TBody>
-): RequestHandler<TParams, unknown, TBody, TQuery> {
-  const handler: RequestHandler<TParams, unknown, TBody, TQuery> = async (
+): RequestHandler<TParams, unknown, TBody, ParsedQs> {
+  const handler: RequestHandler<TParams, unknown, TBody, ParsedQs> = async (
     req,
     _res,
     next
