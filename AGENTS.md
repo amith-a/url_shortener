@@ -930,13 +930,13 @@ Current roadmap:
    - Added UrlService resolution expiry check returning 410 Gone for expired URLs
    - Added unit and integration test coverage
 
-4. Delete URLs
+4. Better Auth
 
-5. Pagination / URL listing
+5. Authorization / URL ownership
 
-6. Better Auth
+6. Delete URLs
 
-7. Authorization / URL ownership
+7. Pagination / URL listing
 
 8. Redis caching
 
@@ -960,7 +960,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Delete URLs
+Better Auth
 ```
 
 ---
