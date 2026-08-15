@@ -1,6 +1,17 @@
 # URL Shortener API
 
-A production-style URL Shortener backend built with **Node.js**, **TypeScript**, **Express**, and **PostgreSQL**. Designed with a clean layered architecture, environment validation via **Zod**, structured logging with **Pino**, and database migrations using **node-pg-migrate**.
+A production-style URL Shortener backend built with **Node.js**, **TypeScript**, **Express**, and **PostgreSQL**. Designed with a clean layered architecture, repository interfaces, environment validation via **Zod**, structured logging with **Pino**, and database migrations using **node-pg-migrate**.
+
+---
+
+## ✨ Key Features
+
+- **Short URL Generation**: Automatic 8-character short-code generation with collision retry logic.
+- **Custom Aliases**: Optional user-defined alphanumeric short codes (3–50 chars) with DB-enforced uniqueness (`409 Conflict`).
+- **URL Expiration**: Optional expiration timestamp (`expiresAt`) with ISO 8601 timezone validation (`410 Gone` on expiry).
+- **SSRF Guard**: Strict URL validation blocking private, loopback, and link-local hostnames (`localhost`, `127.0.0.1`, `169.254.169.254`).
+- **Resilient Startup**: DB connection retries with exponential backoff (5 attempts) for seamless Docker Compose startup.
+- **Repository Abstraction**: Interface-backed dependency injection (`IUrlRepository`) decoupling services from database queries.
 
 ---
 
@@ -35,16 +46,13 @@ Client
 Express Routes
   │
   ▼
-Controllers (HTTP parsing, validation & response formatting)
+Controllers (HTTP parsing & response formatting)
   │
   ▼
-Services (Business logic, short code generation, collision handling)
+Services (Business logic, short code generation, expiration & collision handling)
   │
   ▼
-Repositories (SQL execution & data mapping)
-  │
-  ▼
-PostgreSQL Database
+Repository Interface (IUrlRepository) ──► PostgreSQL Database
 ```
 
 ---
@@ -56,20 +64,21 @@ PostgreSQL Database
 ├── db/
 │   └── migrations/        # node-pg-migrate SQL/TypeScript migration files
 ├── src/
+│   ├── bootstrap/         # Dependency injection wiring (IUrlRepository -> UrlService -> UrlController)
 │   ├── config/            # Database pool, Pino logger, and Zod env validation
 │   ├── controllers/       # HTTP request handlers
 │   ├── dto/               # Data Transfer Objects
-│   ├── errors/            # Custom domain & HTTP error classes
+│   ├── errors/            # Custom domain & HTTP error classes (AppError, NotFoundError, ConflictError, GoneError)
 │   ├── middleware/        # Express custom middleware (error handler, request validation)
-│   ├── repositories/      # Database interaction layer (raw SQL queries)
+│   ├── repositories/      # Database interaction layer & interfaces (IUrlRepository, SQL queries)
 │   ├── routes/            # API endpoint definitions
-│   ├── services/          # Business logic layer
-│   ├── utils/             # Helper utilities (Base62 encoder, etc.)
+│   ├── services/          # Business logic layer (UrlService)
+│   ├── utils/             # Helper utilities (short code generator)
 │   ├── validators/        # Zod request validation schemas
 │   ├── app.ts             # Express application configuration
-│   └── server.ts          # Application entry point & server bootstrap
+│   └── server.ts          # Application entry point & DB connection retry bootstrap
 ├── tests/
-│   ├── unit/              # Unit tests for services, repositories, validators & middleware
+│   ├── unit/              # Unit tests for services, repositories, validators, errors & middleware
 │   └── integration/       # API integration tests using Supertest
 ├── docker-compose.yml     # Local PostgreSQL database container setup
 ├── .env.example           # Template for environment variables
@@ -191,15 +200,45 @@ npm run test:coverage
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY` | Unique identifier (`gen_random_uuid()`) |
 | `original_url` | `TEXT` | `NOT NULL` | The original target URL |
-| `short_code` | `VARCHAR(8)` | `UNIQUE, NOT NULL` | Short code (e.g. `Ab3K9x8Z`) |
+| `short_code` | `VARCHAR(50)` | `UNIQUE, NOT NULL` | Generated short code or custom alias (3–50 chars) |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | Timestamp of creation |
+| `expires_at` | `TIMESTAMPTZ` | `NULL` | Optional expiration timestamp (`NULL` = no expiration) |
 
 ---
 
 ## 🛣️ API Endpoints
 
-* `POST /api/v1/urls` - Shorten a long URL (returns `201 Created` with short code)
-* `GET /api/v1/urls/:shortCode` - Redirect to original target URL (`302 Found` with `Cache-Control: no-cache`)
+### 1. Create Short URL
+`POST /api/v1/urls`
+
+**Request Body**:
+```json
+{
+  "originalUrl": "https://example.com/very-long-url-path",
+  "customAlias": "myCustomAlias",
+  "expiresAt": "2026-12-31T23:59:59+05:30"
+}
+```
+
+* `originalUrl` *(required)*: Valid public HTTP/HTTPS URL (max 2048 chars).
+* `customAlias` *(optional)*: 3–50 alphanumeric characters (`A-Z`, `a-z`, `0-9`).
+* `expiresAt` *(optional)*: ISO 8601 datetime with timezone offset (must be in the future).
+
+**Responses**:
+* `201 Created`: Returns created URL object.
+* `400 Bad Request`: Validation failure (malformed URL, invalid alias, past date, or missing timezone offset).
+* `409 Conflict`: Custom alias is already in use.
+
+---
+
+### 2. Redirect to Original URL
+`GET /api/v1/urls/:shortCode`
+
+**Responses**:
+* `302 Found`: Redirects to original URL with `Cache-Control: no-cache, no-store, must-revalidate`.
+* `404 Not Found`: Short URL does not exist.
+* `410 Gone`: URL has expired (`expiresAt <= NOW()`).
+
 
 
 ---
