@@ -42,6 +42,13 @@ export const urlSchema = z.object({
         return false;
       }
     }, 'Only public HTTP and HTTPS URLs are allowed'),
+  customAlias: z
+    .string()
+    .trim()
+    .min(3, 'Custom alias must be at least 3 characters')
+    .max(50, 'Custom alias must not exceed 50 characters')
+    .regex(/^[A-Za-z0-9]+$/, 'Invalid custom alias format')
+    .optional(),
 });
 
 export const getUrlSchema = z.object({

@@ -93,6 +93,47 @@ describe('UrlService', () => {
 
       expect(repository.create).toHaveBeenCalledTimes(5);
     });
+
+    it('should create URL with custom alias without performing preliminary lookup', async () => {
+      vi.mocked(repository.create).mockResolvedValueOnce({
+        id: 'uuid-custom-1',
+        shortCode: 'myCustomAlias',
+        originalUrl: 'https://example.com',
+        createdAt: new Date(),
+      });
+
+      const result = await service.create({
+        originalUrl: 'https://example.com',
+        customAlias: 'myCustomAlias',
+      });
+
+      expect(repository.findByShortCode).not.toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledTimes(1);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          shortCode: 'myCustomAlias',
+          originalUrl: 'https://example.com',
+        })
+      );
+      expect(result.shortCode).toBe('myCustomAlias');
+    });
+
+    it('should throw ConflictError when customAlias produces 23505 unique violation without retry', async () => {
+      const pgUniqueError = new Error('Unique constraint error');
+      (pgUniqueError as unknown as { code: string }).code = '23505';
+
+      vi.mocked(repository.create).mockRejectedValueOnce(pgUniqueError);
+
+      await expect(
+        service.create({
+          originalUrl: 'https://example.com',
+          customAlias: 'duplicateAlias',
+        })
+      ).rejects.toThrow('Custom alias is already in use');
+
+      expect(repository.findByShortCode).not.toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resolveShortCode', () => {

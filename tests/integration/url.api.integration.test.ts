@@ -95,6 +95,63 @@ describe('API Integration Tests (Mocked DB)', () => {
       expect(response.body).toHaveProperty('success', false);
       expect(response.body).toHaveProperty('message');
     });
+
+    it('should create short URL with valid customAlias and return 201 Created', async () => {
+      const validAliases = ['abc123', 'ABC123', '123456'];
+
+      for (const customAlias of validAliases) {
+        const mockRow: UrlRow = {
+          id: `uuid-${customAlias}`,
+          short_code: customAlias,
+          original_url: 'https://example.com/alias-target',
+          created_at: new Date('2026-01-01T00:00:00.000Z'),
+        };
+
+        vi.spyOn(pool, 'query').mockImplementationOnce(
+          async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
+        );
+
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .send({ originalUrl: 'https://example.com/alias-target', customAlias });
+
+        expect(response.status).toBe(201);
+        expect(response.body).toHaveProperty('shortCode', customAlias);
+      }
+    });
+
+    it('should return 409 Conflict when customAlias is already taken', async () => {
+      const pgUniqueError = new Error('duplicate key value violates unique constraint');
+      (pgUniqueError as unknown as { code: string }).code = '23505';
+
+      vi.spyOn(pool, 'query').mockImplementationOnce(async () => {
+        throw pgUniqueError;
+      });
+
+      const response = await request(app)
+        .post('/api/v1/urls')
+        .send({ originalUrl: 'https://example.com/alias-target', customAlias: 'takenAlias' });
+
+      expect(response.status).toBe(409);
+      expect(response.body).toEqual({
+        success: false,
+        message: 'Custom alias is already in use',
+      });
+    });
+
+    it('should return 400 Bad Request for invalid customAlias formats', async () => {
+      const invalidAliases = ['ab', 'abc-123', 'abc_123', 'abc 123', 'abc/123', 'abc@123'];
+
+      for (const customAlias of invalidAliases) {
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .send({ originalUrl: 'https://example.com/target', customAlias });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('message', 'Validation failed');
+      }
+    });
   });
 
   describe('GET /api/v1/urls/:shortCode', () => {

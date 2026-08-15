@@ -551,7 +551,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after the foundation refactor._
+_Last updated: 2026-08-15, after custom aliases implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -572,17 +572,16 @@ Currently implemented:
 ```text
 AppError
 NotFoundError (404)
+ConflictError (409)
 ```
-
-No other status-specific error classes currently exist.
 
 The next planned error class is:
 
 ```text
-ConflictError (409)
+GoneError (410)
 ```
 
-for duplicate custom aliases.
+for expired URLs.
 
 Later:
 
@@ -698,11 +697,7 @@ The application will own authorization/business rules such as URL ownership.
 
 ---
 
-## Custom Aliases
-
-Not implemented yet.
-
-Planned behavior:
+Implemented behavior:
 
 ```text
 POST /api/v1/urls
@@ -713,11 +708,17 @@ POST /api/v1/urls
 }
 ```
 
-`customAlias` will be optional.
+`customAlias` is optional (3-50 alphanumeric characters).
 
-If it is not supplied, the application will generate the short code.
+If it is omitted, the application generates a random 8-character short code.
 
 If it is supplied:
+- Validated via Zod (`/^[A-Za-z0-9]+$/`, min 3, max 50).
+- Passed directly to `repository.create()`.
+- Stored as `short_code` in the `urls` table (column expanded to `VARCHAR(50)` via migration).
+- PostgreSQL `UNIQUE` constraint checks uniqueness directly.
+- Returns `409 Conflict` via `ConflictError` if PostgreSQL returns unique violation (`23505`).
+- Does not retry random code generation on alias conflict.
 
 - Validate the alias.
 - Store it as the short code.
@@ -930,15 +931,13 @@ Current roadmap:
    - Derived request DTOs from Zod using z.infer
    - Added repository interfaces
 
-2. Custom aliases
-   Next feature.
-   Requires:
-   - customAlias validation
-   - database uniqueness
-   - ConflictError (409)
-   - service/repository updates
-   - unit tests
-   - integration tests
+2. ~~Custom aliases~~
+   Done:
+   - Added optional customAlias validation (3-50 chars, alphanumeric)
+   - Added database migration altering short_code to VARCHAR(50)
+   - Added ConflictError (409)
+   - Updated UrlService to handle customAlias directly and map PG 23505 to ConflictError
+   - Added unit and integration test coverage
 
 3. URL expiration
    Requires:

@@ -5,6 +5,7 @@ import { generateShortCode } from '../utils/short-code';
 import { CreateUrlDto } from '../dto/create-url.dto';
 import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
 import { NotFoundError } from '../errors/not-found.error';
+import { ConflictError } from '../errors/conflict.error';
 import AppError from '../errors/app-error';
 import { logger } from '../config/logger';
 
@@ -20,6 +21,27 @@ export class UrlService {
 
   async create(request: CreateShortUrlRequestDto): Promise<UrlDto> {
     const id = this.generateId();
+
+    if (request.customAlias) {
+      try {
+        const dto: CreateUrlDto = {
+          id,
+          shortCode: request.customAlias,
+          originalUrl: request.originalUrl,
+        };
+
+        const createdUrl = await this.repository.create(dto);
+        logger.info({ urlId: createdUrl.id, shortCode: createdUrl.shortCode }, 'Short URL with custom alias created successfully');
+        return createdUrl;
+      } catch (err: unknown) {
+        const pgError = err as { code?: string };
+        if (pgError.code === PG_UNIQUE_VIOLATION) {
+          logger.warn({ customAlias: request.customAlias }, 'Custom alias collision on DB insert');
+          throw new ConflictError('Custom alias is already in use');
+        }
+        throw err;
+      }
+    }
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const shortCode = generateShortCode();
