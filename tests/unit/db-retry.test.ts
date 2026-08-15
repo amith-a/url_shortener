@@ -1,10 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
 import { connectWithRetry } from '../../src/server';
 import { logger } from '../../src/config/logger';
 
 describe('connectWithRetry', () => {
   let mockPool: { query: ReturnType<typeof vi.fn> };
-  let mockDelayFn: ReturnType<typeof vi.fn>;
+  let mockDelayFn: Mock<(ms: number) => Promise<void>>;
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let warnSpy: ReturnType<typeof vi.spyOn>;
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -15,7 +15,7 @@ describe('connectWithRetry', () => {
     mockPool = {
       query: vi.fn(),
     };
-    mockDelayFn = vi.fn().mockResolvedValue(undefined);
+    mockDelayFn = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
     warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => logger);
     errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => logger);
