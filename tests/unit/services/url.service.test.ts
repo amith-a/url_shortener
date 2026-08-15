@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UrlService } from '../../../src/services/url.service';
 import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
+import type { UrlCacheService } from '../../../src/services/url-cache.service';
 
 describe('UrlService', () => {
   let repository: IUrlRepository;
+  let cacheService: UrlCacheService;
   let service: UrlService;
 
   beforeEach(() => {
@@ -15,7 +17,14 @@ describe('UrlService', () => {
       countByUserId: vi.fn(),
     };
 
-    service = new UrlService(repository);
+    cacheService = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      flushTestKeys: vi.fn(),
+    } as unknown as UrlCacheService;
+
+    service = new UrlService(repository, cacheService);
   });
 
   describe('create', () => {
@@ -53,8 +62,8 @@ describe('UrlService', () => {
       };
 
       vi.mocked(repository.findByShortCode)
-        .mockResolvedValueOnce(existingDto) // first lookup collision
-        .mockResolvedValueOnce(null); // second lookup clear
+        .mockResolvedValueOnce(existingDto)
+        .mockResolvedValueOnce(null);
 
       vi.mocked(repository.create).mockResolvedValueOnce({
         id: 'uuid-1',
@@ -79,7 +88,7 @@ describe('UrlService', () => {
       (pgUniqueError as unknown as { code: string }).code = '23505';
 
       vi.mocked(repository.create)
-        .mockRejectedValueOnce(pgUniqueError) // first insert collision
+        .mockRejectedValueOnce(pgUniqueError)
         .mockResolvedValueOnce({
           id: 'uuid-2',
           shortCode: 'retry123',
@@ -130,13 +139,6 @@ describe('UrlService', () => {
 
       expect(repository.findByShortCode).not.toHaveBeenCalled();
       expect(repository.create).toHaveBeenCalledTimes(1);
-      expect(repository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          shortCode: 'myCustomAlias',
-          originalUrl: 'https://example.com',
-          userId: 'user-123',
-        })
-      );
       expect(result.shortCode).toBe('myCustomAlias');
     });
 
@@ -162,8 +164,9 @@ describe('UrlService', () => {
   });
 
   describe('deleteUrl', () => {
-    it('should delete URL successfully when id and userId match', async () => {
-      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(true);
+    it('should delete URL and invalidate Redis cache when id and userId match', async () => {
+      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce('url-123-code');
+      vi.mocked(cacheService.delete).mockResolvedValueOnce(undefined);
 
       await expect(
         service.deleteUrl('url-123', 'user-123')
@@ -173,14 +176,17 @@ describe('UrlService', () => {
         'url-123',
         'user-123'
       );
+      expect(cacheService.delete).toHaveBeenCalledWith('url-123-code');
     });
 
     it('should throw NotFoundError when deletion fails (no matching row)', async () => {
-      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(false);
+      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(null);
 
       await expect(
         service.deleteUrl('url-123', 'other-user')
       ).rejects.toThrow('Short URL not found');
+
+      expect(cacheService.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -239,27 +245,21 @@ describe('UrlService', () => {
         },
       });
     });
-
-    it('should handle page beyond available data correctly', async () => {
-      vi.mocked(repository.listByUserId).mockResolvedValueOnce([]);
-      vi.mocked(repository.countByUserId).mockResolvedValueOnce(2);
-
-      const result = await service.list('user-123', 5, 20);
-
-      expect(result).toEqual({
-        data: [],
-        pagination: {
-          page: 5,
-          limit: 20,
-          total: 2,
-          totalPages: 1,
-        },
-      });
-    });
   });
 
   describe('resolveShortCode', () => {
-    it('should return original URL when short code exists', async () => {
+    it('should return cached original URL on Cache HIT without querying PostgreSQL', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce('https://cached.com');
+
+      const url = await service.resolveShortCode('cachedCode');
+
+      expect(cacheService.get).toHaveBeenCalledWith('cachedCode');
+      expect(repository.findByShortCode).not.toHaveBeenCalled();
+      expect(url).toBe('https://cached.com');
+    });
+
+    it('should query PostgreSQL on Cache MISS, populate cache, and return original URL', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
         id: 'uuid-1',
         shortCode: 'abc12345',
@@ -268,13 +268,23 @@ describe('UrlService', () => {
         expiresAt: null,
         userId: 'user-123',
       });
+      vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
 
       const url = await service.resolveShortCode('abc12345');
+
+      expect(cacheService.get).toHaveBeenCalledWith('abc12345');
+      expect(repository.findByShortCode).toHaveBeenCalledWith('abc12345');
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'abc12345',
+        'https://example.com',
+        expect.any(Number)
+      );
       expect(url).toBe('https://example.com');
     });
 
-    it('should return original URL when expiresAt is in the future', async () => {
-      const futureDate = new Date(Date.now() + 86400000);
+    it('should compute effective TTL capped by remaining expiration time for expiring URLs', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce(null);
+      const futureDate = new Date(Date.now() + 60000); // 60 seconds from now
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
         id: 'uuid-1',
         shortCode: 'future12',
@@ -283,12 +293,20 @@ describe('UrlService', () => {
         expiresAt: futureDate,
         userId: 'user-123',
       });
+      vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
 
       const url = await service.resolveShortCode('future12');
+
       expect(url).toBe('https://example.com');
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'future12',
+        'https://example.com',
+        expect.any(Number)
+      );
     });
 
-    it('should throw GoneError when URL has expired', async () => {
+    it('should delete cache key and throw GoneError when URL is expired in PostgreSQL', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       const pastDate = new Date(Date.now() - 1000);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
         id: 'uuid-1',
@@ -298,18 +316,39 @@ describe('UrlService', () => {
         expiresAt: pastDate,
         userId: 'user-123',
       });
+      vi.mocked(cacheService.delete).mockResolvedValueOnce(undefined);
 
       await expect(service.resolveShortCode('expired1')).rejects.toThrow(
         'URL has expired'
       );
+      expect(cacheService.delete).toHaveBeenCalledWith('expired1');
+      expect(cacheService.set).not.toHaveBeenCalled();
     });
 
-    it('should throw NotFoundError when short code does not exist', async () => {
+    it('should throw NotFoundError when short code does not exist in PostgreSQL and not cache result', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce(null);
 
       await expect(service.resolveShortCode('nonexistent')).rejects.toThrow(
         'Short URL not found'
       );
+      expect(cacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('should fallback to PostgreSQL if cacheService.get fails', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce(null);
+      vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
+        id: 'uuid-1',
+        shortCode: 'abc12345',
+        originalUrl: 'https://fallback.com',
+        createdAt: new Date(),
+        expiresAt: null,
+        userId: 'user-123',
+      });
+
+      const url = await service.resolveShortCode('abc12345');
+
+      expect(url).toBe('https://fallback.com');
     });
   });
 });

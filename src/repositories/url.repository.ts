@@ -74,16 +74,16 @@ export class UrlRepository implements IUrlRepository {
     return this.mapToDto(row);
   }
 
-  async deleteByIdAndUserId(id: string, userId: string): Promise<boolean> {
+  async deleteByIdAndUserId(id: string, userId: string): Promise<string | null> {
     const query = `
       DELETE FROM urls
       WHERE id = $1 AND user_id = $2
-      RETURNING id;
+      RETURNING short_code;
     `;
 
-    const result = await pool.query<{ id: string }>(query, [id, userId]);
+    const result = await pool.query<{ short_code: string }>(query, [id, userId]);
 
-    return (result.rowCount ?? 0) > 0;
+    return result.rows[0]?.short_code ?? null;
   }
 
   async listByUserId(

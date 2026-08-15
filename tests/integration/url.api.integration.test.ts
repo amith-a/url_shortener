@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../../src/app';
 import pool from '../../src/config/database';
+import { cacheService } from '../../src/bootstrap/url.bootstrap';
 
 async function safeCleanupUrlTables() {
   const { rows } = await pool.query('SELECT current_database()');
@@ -16,6 +17,8 @@ async function safeCleanupUrlTables() {
   await pool.query(
     'TRUNCATE TABLE urls, "session", "account", "user", "verification" RESTART IDENTITY CASCADE'
   );
+
+  await cacheService.flushTestKeys();
 }
 
 async function registerAndLogin(email: string, name: string) {
@@ -32,7 +35,7 @@ async function registerAndLogin(email: string, name: string) {
   };
 }
 
-describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
+describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
   beforeEach(async () => {
     await safeCleanupUrlTables();
   });
@@ -137,7 +140,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
         'Conflict User'
       );
 
-      // First insertion
       await request(app)
         .post('/api/v1/urls')
         .set('Cookie', cookies)
@@ -146,7 +148,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
           customAlias: 'takenAlias123',
         });
 
-      // Second insertion with identical alias
       const response = await request(app)
         .post('/api/v1/urls')
         .set('Cookie', cookies)
@@ -180,7 +181,7 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
     });
   });
 
-  describe('DELETE /api/v1/urls/:id (Protected Route & Ownership)', () => {
+  describe('DELETE /api/v1/urls/:id (Protected Route & Ownership & Redis Invalidation)', () => {
     it('should return 401 Unauthorized for unauthenticated DELETE', async () => {
       const response = await request(app).delete(
         '/api/v1/urls/11111111-1111-1111-1111-111111111111'
@@ -193,7 +194,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       const userA = await registerAndLogin('userA@example.com', 'User A');
       const userB = await registerAndLogin('userB@example.com', 'User B');
 
-      // User A creates a URL
       const createRes = await request(app)
         .post('/api/v1/urls')
         .set('Cookie', userA.cookies)
@@ -201,7 +201,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
 
       const urlId = createRes.body.id;
 
-      // User B attempts to delete User A's URL
       const deleteRes = await request(app)
         .delete(`/api/v1/urls/${urlId}`)
         .set('Cookie', userB.cookies);
@@ -212,36 +211,41 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
         message: 'Short URL not found',
       });
 
-      // Verify URL still exists in the database
       const dbRes = await pool.query('SELECT id FROM urls WHERE id = $1', [
         urlId,
       ]);
       expect(dbRes.rows.length).toBe(1);
     });
 
-    it('should return 204 No Content and delete URL when User A deletes own URL', async () => {
+    it('should return 204 No Content, delete URL from PostgreSQL, and invalidate Redis cache', async () => {
       const userA = await registerAndLogin('userA@example.com', 'User A');
 
-      // User A creates a URL
       const createRes = await request(app)
         .post('/api/v1/urls')
         .set('Cookie', userA.cookies)
         .send({ originalUrl: 'https://example.com/user-a-url' });
 
       const urlId = createRes.body.id;
+      const shortCode = createRes.body.shortCode;
 
-      // User A deletes own URL
+      // Populate Redis cache via first GET request
+      const firstGetRes = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(firstGetRes.status).toBe(302);
+      expect(await cacheService.get(shortCode)).toBe('https://example.com/user-a-url');
+
+      // Delete URL
       const deleteRes = await request(app)
         .delete(`/api/v1/urls/${urlId}`)
         .set('Cookie', userA.cookies);
 
       expect(deleteRes.status).toBe(204);
 
-      // Verify URL no longer exists in database
-      const dbRes = await pool.query('SELECT id FROM urls WHERE id = $1', [
-        urlId,
-      ]);
-      expect(dbRes.rows.length).toBe(0);
+      // Verify Redis cache key is invalidated
+      expect(await cacheService.get(shortCode)).toBeNull();
+
+      // Subsequent GET request returns 404
+      const secondGetRes = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(secondGetRes.status).toBe(404);
     });
   });
 
@@ -345,7 +349,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
           .send({ originalUrl: `https://example.com/page-item-${i}` });
       }
 
-      // Fetch page 1 with limit 2
       const resPage1 = await request(app)
         .get('/api/v1/urls?page=1&limit=2')
         .set('Cookie', userA.cookies);
@@ -359,7 +362,6 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       });
       expect(resPage1.body.data).toHaveLength(2);
 
-      // Fetch page 2 with limit 2
       const resPage2 = await request(app)
         .get('/api/v1/urls?page=2&limit=2')
         .set('Cookie', userA.cookies);
@@ -399,27 +401,32 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
     });
   });
 
-  describe('GET /api/v1/urls/:shortCode (Public Route)', () => {
-    it('should allow public unauthenticated GET redirect (302 Found)', async () => {
+  describe('GET /api/v1/urls/:shortCode (Public Route & Redis Caching)', () => {
+    it('should resolve URL via Cache MISS then serve subsequent requests via Cache HIT', async () => {
       const userA = await registerAndLogin('userA@example.com', 'User A');
 
       const createRes = await request(app)
         .post('/api/v1/urls')
         .set('Cookie', userA.cookies)
-        .send({ originalUrl: 'https://example.com/public-redirect-target' });
+        .send({ originalUrl: 'https://example.com/cached-redirect-target' });
 
       const shortCode = createRes.body.shortCode;
 
-      // Public unauthenticated GET request
-      const response = await request(app).get(`/api/v1/urls/${shortCode}`);
+      // Verify key is initially not in Redis
+      expect(await cacheService.get(shortCode)).toBeNull();
 
-      expect(response.status).toBe(302);
-      expect(response.headers.location).toBe(
-        'https://example.com/public-redirect-target'
-      );
-      expect(response.headers['cache-control']).toBe(
-        'no-cache, no-store, must-revalidate'
-      );
+      // First resolution (Cache MISS -> PostgreSQL -> Cache SET)
+      const res1 = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(res1.status).toBe(302);
+      expect(res1.headers.location).toBe('https://example.com/cached-redirect-target');
+
+      // Verify key is now cached in Redis
+      expect(await cacheService.get(shortCode)).toBe('https://example.com/cached-redirect-target');
+
+      // Second resolution (Cache HIT)
+      const res2 = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(res2.status).toBe(302);
+      expect(res2.headers.location).toBe('https://example.com/cached-redirect-target');
     });
 
     it('should return 410 Gone when short URL has expired', async () => {
@@ -442,6 +449,7 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
         success: false,
         message: 'URL has expired',
       });
+      expect(await cacheService.get('expired123')).toBeNull();
     });
 
     it('should return 404 Not Found when short code does not exist', async () => {

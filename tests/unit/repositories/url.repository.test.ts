@@ -131,28 +131,28 @@ describe('UrlRepository', () => {
   });
 
   describe('deleteByIdAndUserId', () => {
-    it('should return true when a row is deleted', async () => {
+    it('should return short_code when a row is deleted', async () => {
       vi.spyOn(pool, 'query').mockImplementation(
         async () =>
           ({
-            rows: [{ id: 'uuid-1' }],
+            rows: [{ short_code: 'abc12345' }],
             command: 'DELETE',
             rowCount: 1,
             oid: 0,
             fields: [],
-          }) as unknown as QueryResult<{ id: string }>
+          }) as unknown as QueryResult<{ short_code: string }>
       );
 
       const result = await repository.deleteByIdAndUserId('uuid-1', 'user-123');
 
-      expect(result).toBe(true);
+      expect(result).toBe('abc12345');
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining('DELETE FROM urls'),
         ['uuid-1', 'user-123']
       );
     });
 
-    it('should return false when no row is deleted (ownership mismatch or not found)', async () => {
+    it('should return null when no row is deleted (ownership mismatch or not found)', async () => {
       vi.spyOn(pool, 'query').mockImplementation(
         async () =>
           ({
@@ -161,12 +161,12 @@ describe('UrlRepository', () => {
             rowCount: 0,
             oid: 0,
             fields: [],
-          }) as unknown as QueryResult<{ id: string }>
+          }) as unknown as QueryResult<{ short_code: string }>
       );
 
       const result = await repository.deleteByIdAndUserId('uuid-1', 'other-user');
 
-      expect(result).toBe(false);
+      expect(result).toBeNull();
     });
   });
 

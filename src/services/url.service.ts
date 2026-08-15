@@ -5,17 +5,22 @@ import { randomUUID } from 'node:crypto';
 import { generateShortCode } from '../utils/short-code';
 import { CreateUrlDto } from '../dto/create-url.dto';
 import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
+import type { UrlCacheService } from './url-cache.service';
 import { NotFoundError } from '../errors/not-found.error';
 import { ConflictError } from '../errors/conflict.error';
 import { GoneError } from '../errors/gone.error';
 import AppError from '../errors/app-error';
 import { logger } from '../config/logger';
+import { env } from '../config/env';
 
 const PG_UNIQUE_VIOLATION = '23505';
 const MAX_ATTEMPTS = 5;
 
 export class UrlService {
-  constructor(private readonly repository: IUrlRepository) {}
+  constructor(
+    private readonly repository: IUrlRepository,
+    private readonly cacheService: UrlCacheService
+  ) {}
 
   private generateId(): string {
     return randomUUID();
@@ -108,9 +113,9 @@ export class UrlService {
   }
 
   async deleteUrl(id: string, userId: string): Promise<void> {
-    const deleted = await this.repository.deleteByIdAndUserId(id, userId);
+    const deletedShortCode = await this.repository.deleteByIdAndUserId(id, userId);
 
-    if (!deleted) {
+    if (!deletedShortCode) {
       logger.warn(
         { id, userId },
         'URL deletion failed: URL not found or ownership mismatch'
@@ -118,7 +123,11 @@ export class UrlService {
       throw new NotFoundError('Short URL not found');
     }
 
-    logger.info({ id, userId }, 'Short URL deleted successfully');
+    await this.cacheService.delete(deletedShortCode);
+    logger.info(
+      { id, userId, shortCode: deletedShortCode },
+      'Short URL deleted successfully'
+    );
   }
 
   async list(
@@ -152,6 +161,12 @@ export class UrlService {
   }
 
   async resolveShortCode(shortCode: string): Promise<string> {
+    const cachedUrl = await this.cacheService.get(shortCode);
+    if (cachedUrl) {
+      logger.debug({ shortCode }, 'Short code resolved from cache successfully');
+      return cachedUrl;
+    }
+
     const response = await this.repository.findByShortCode(shortCode);
 
     if (!response) {
@@ -167,7 +182,20 @@ export class UrlService {
         { shortCode, expiresAt: response.expiresAt },
         'Short code resolution failed: URL has expired'
       );
+      await this.cacheService.delete(shortCode);
       throw new GoneError('URL has expired');
+    }
+
+    let effectiveTtl = env.REDIS_URL_TTL;
+    if (response.expiresAt !== null) {
+      const remainingSeconds = Math.floor(
+        (response.expiresAt.getTime() - Date.now()) / 1000
+      );
+      effectiveTtl = Math.min(env.REDIS_URL_TTL, remainingSeconds);
+    }
+
+    if (effectiveTtl > 0) {
+      await this.cacheService.set(shortCode, response.originalUrl, effectiveTtl);
     }
 
     logger.debug({ shortCode }, 'Short code resolved successfully');

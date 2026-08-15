@@ -281,8 +281,11 @@ npm run test:coverage
 
 ---
 
-#### 3. Redirect to Original URL *(Public)*
+#### 3. Redirect to Original URL *(Public & Redis Cached)*
 `GET /api/v1/urls/:shortCode`
+
+**Cache Strategy**:
+Uses Cache-Aside via Redis (`url:{shortCode}`). On cache MISS, populates Redis with `effectiveTTL = min(REDIS_URL_TTL, remainingSeconds)`. Deletion (`DELETE /api/v1/urls/:id`) invalidates the Redis key.
 
 **Responses**:
 * `302 Found`: Redirects to original URL with `Cache-Control: no-cache, no-store, must-revalidate`.

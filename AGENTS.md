@@ -549,7 +549,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after Pagination / URL listing implementation._
+_Last updated: 2026-08-16, after Redis caching implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -788,23 +788,35 @@ Optimized with database compound index `idx_urls_user_id_created_at_id` on `urls
 
 ## Caching
 
-No Redis caching is currently implemented.
+Implemented cache-aside Redis caching for public short URL resolution (`GET /api/v1/urls/:shortCode`).
 
-Planned use:
-
+Flow:
 ```text
-GET short code
-      ↓
-Redis
-  ├── HIT  → return cached URL
-  └── MISS
+GET /api/v1/urls/:shortCode
         ↓
-    PostgreSQL
+     Redis GET url:{shortCode}
         ↓
-      Redis
+   ┌────┴────┐
+  HIT       MISS
+   │         │
+   ↓         ↓
+return   PostgreSQL
+            ↓
+         found?
+            ↓
+         Redis SET (TTL = min(REDIS_URL_TTL, remainingSeconds))
+            ↓
+          return
 ```
 
-Use Redis only after the core URL functionality is stable.
+Key details:
+- Key format: `url:{shortCode}`
+- Configured via `REDIS_URL` and `REDIS_URL_TTL` (validated centrally via `src/config/env.ts`).
+- PostgreSQL remains the source of truth.
+- Effective TTL is capped by URL expiration (`expiresAt - currentTime`). Expired URLs are never cached.
+- Deleting a short URL (`DELETE /api/v1/urls/:id`) invalidates `url:{shortCode}` in Redis.
+- Redis errors are logged and handled safely; connection or command failures fall back to PostgreSQL without breaking application flow.
+- Redis container (`redis:7-alpine`) running in Docker Compose on port `6379`.
 
 ---
 
@@ -975,7 +987,15 @@ Current roadmap:
    - Added compound database index `idx_urls_user_id_created_at_id`
    - Added unit and real PostgreSQL test database integration coverage
 
-8. Redis caching
+8. ~~Redis caching~~
+   Done:
+   - Implemented cache-aside Redis caching for `GET /api/v1/urls/:shortCode` (`url:{shortCode}`)
+   - Connected Redis client (`ioredis`) with connection error fallback logging
+   - Added configurable `REDIS_URL` and `REDIS_URL_TTL` environment validation
+   - Applied effective TTL calculations respecting URL expiration
+   - Added cache invalidation on URL deletion (`DELETE /api/v1/urls/:id`)
+   - Added Docker Compose `redis:7-alpine` service on port 6379
+   - Added unit tests (`url-cache.service.test.ts`, `url.service.test.ts`) and real Redis integration tests (`url.api.integration.test.ts`)
 
 9. Rate limiting
 
@@ -997,7 +1017,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Redis caching
+Rate limiting
 ```
 
 ---
