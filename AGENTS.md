@@ -657,6 +657,9 @@ The current URL validator:
 - Blocks link-local hostnames.
 - Blocks loopback hostnames.
 - Uses the shared `isPrivateHostname` SSRF guard.
+- Supports optional `expiresAt`.
+- `expiresAt` must be a valid ISO 8601 datetime with timezone information.
+- `expiresAt` must be in the future when creating a URL.
 
 Any future URL-accepting endpoint must reuse this validation.
 
