@@ -610,6 +610,8 @@ POST /api/v1/urls
         ↓
 Route
         ↓
+requireAuth middleware
+        ↓
 Validation middleware
         ↓
 Controller
@@ -679,9 +681,11 @@ Implemented via self-hosted **Better Auth**:
 - Connected to shared PostgreSQL pool (`src/config/database.ts`).
 - Managed tables: `user`, `session`, `account`, `verification` (introduced via migration `add-better-auth-tables`).
 - Handler mounted in `src/app.ts` via `toNodeHandler(auth)` before `express.json()`.
-- Endpoints under `/api/v1/urls/*` remain public for now until Authorization / URL ownership is introduced.
+- `POST /api/v1/urls` and `DELETE /api/v1/urls/:id` are protected via `requireAuth` middleware, requiring a valid session. `GET /api/v1/urls/:shortCode` remains public.
 
 ---
+
+## Custom Aliases
 
 Implemented behavior:
 
