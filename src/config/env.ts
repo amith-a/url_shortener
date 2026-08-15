@@ -17,6 +17,12 @@ const envSchema = z.object({
   POSTGRES_USER: z.string().min(1),
   POSTGRES_PASSWORD: z.string(),
   DATABASE_URL: z.string().min(8),
+
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long')
+    .default('default-secret-key-at-least-32-chars-long-for-dev-and-testing'),
+  BETTER_AUTH_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

@@ -6,6 +6,7 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 
 ## ✨ Key Features
 
+- **Authentication**: Self-hosted email/password signup, login, session management, and sign-out via **Better Auth** (`/api/auth/*`).
 - **Short URL Generation**: Automatic 8-character short-code generation with collision retry logic.
 - **Custom Aliases**: Optional user-defined alphanumeric short codes (3–50 chars) with DB-enforced uniqueness (`409 Conflict`).
 - **URL Expiration**: Optional expiration timestamp (`expiresAt`) with ISO 8601 timezone validation (`410 Gone` on expiry).
@@ -22,6 +23,7 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 | **Runtime** | Node.js |
 | **Language** | TypeScript |
 | **Framework** | Express |
+| **Auth** | Better Auth |
 | **Database** | PostgreSQL |
 | **Driver** | `pg` |
 | **Migrations** | `node-pg-migrate` |
@@ -42,17 +44,15 @@ The application follows a clean, decoupled **Layered Architecture**:
 ```text
 Client
   │
-  ▼
-Express Routes
-  │
-  ▼
-Controllers (HTTP parsing & response formatting)
-  │
-  ▼
-Services (Business logic, short code generation, expiration & collision handling)
-  │
-  ▼
-Repository Interface (IUrlRepository) ──► PostgreSQL Database
+  ├───────────────────────────────┐
+  ▼                               ▼
+/api/auth/*                     /api/v1/*
+  │                               │
+  ▼                               ▼
+Better Auth                    Controllers (HTTP parsing & formatting)
+  │                               │
+  ▼                               ▼
+Database (user, session, etc.)  Services ──► Repository (IUrlRepository) ──► PostgreSQL
 ```
 
 ---
@@ -65,7 +65,7 @@ Repository Interface (IUrlRepository) ──► PostgreSQL Database
 │   └── migrations/        # node-pg-migrate SQL/TypeScript migration files
 ├── src/
 │   ├── bootstrap/         # Dependency injection wiring (IUrlRepository -> UrlService -> UrlController)
-│   ├── config/            # Database pool, Pino logger, and Zod env validation
+│   ├── config/            # Database pool, Pino logger, Zod env validation & Better Auth config (auth.ts)
 │   ├── controllers/       # HTTP request handlers
 │   ├── dto/               # Data Transfer Objects
 │   ├── errors/            # Custom domain & HTTP error classes (AppError, NotFoundError, ConflictError, GoneError)
@@ -75,11 +75,11 @@ Repository Interface (IUrlRepository) ──► PostgreSQL Database
 │   ├── services/          # Business logic layer (UrlService)
 │   ├── utils/             # Helper utilities (short code generator)
 │   ├── validators/        # Zod request validation schemas
-│   ├── app.ts             # Express application configuration
+│   ├── app.ts             # Express application configuration (Better Auth handler mounted at /api/auth/*)
 │   └── server.ts          # Application entry point & DB connection retry bootstrap
 ├── tests/
 │   ├── unit/              # Unit tests for services, repositories, validators, errors & middleware
-│   └── integration/       # API integration tests using Supertest
+│   └── integration/       # API integration tests using Supertest (URL and Auth endpoints)
 ├── docker-compose.yml     # Local PostgreSQL database container setup
 ├── .env.example           # Template for environment variables
 ├── eslint.config.mjs      # ESLint configuration
@@ -124,6 +124,8 @@ POSTGRES_DB=url_shortener
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/url_shortener
+BETTER_AUTH_SECRET=replace-with-a-secure-secret-at-least-32-chars-long
+BETTER_AUTH_URL=http://localhost:3000
 ```
 
 ### 3. Start Database
@@ -204,11 +206,23 @@ npm run test:coverage
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | Timestamp of creation |
 | `expires_at` | `TIMESTAMPTZ` | `NULL` | Optional expiration timestamp (`NULL` = no expiration) |
 
+> Additional tables managed by Better Auth: `user`, `session`, `account`, `verification`.
+
 ---
 
 ## 🛣️ API Endpoints
 
-### 1. Create Short URL
+### Authentication (`/api/auth/*`)
+* `POST /api/auth/sign-up/email` - Register a new user with email, password, and name.
+* `POST /api/auth/sign-in/email` - Authenticate existing user credentials and receive session cookie.
+* `GET /api/auth/get-session` - Retrieve the current authenticated user and session details.
+* `POST /api/auth/sign-out` - Terminate active authentication session.
+
+---
+
+### URL Operations (`/api/v1/urls/*`)
+
+#### 1. Create Short URL
 `POST /api/v1/urls`
 
 **Request Body**:
@@ -231,13 +245,14 @@ npm run test:coverage
 
 ---
 
-### 2. Redirect to Original URL
+#### 2. Redirect to Original URL
 `GET /api/v1/urls/:shortCode`
 
 **Responses**:
 * `302 Found`: Redirects to original URL with `Cache-Control: no-cache, no-store, must-revalidate`.
 * `404 Not Found`: Short URL does not exist.
 * `410 Gone`: URL has expired (`expiresAt <= NOW()`).
+
 
 
 

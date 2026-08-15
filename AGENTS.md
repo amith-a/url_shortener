@@ -549,7 +549,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after URL expiration implementation._
+_Last updated: 2026-08-15, after Better Auth implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -667,21 +667,12 @@ Any future URL-accepting endpoint must reuse this validation.
 
 ## Authentication
 
-Authentication is currently **not implemented**.
-
-All current endpoints are public.
-
-Do not assume authentication or authorization middleware exists.
-
-Planned authentication:
-
-```text
-Better Auth
-```
-
-Authentication should be introduced after the core URL-management features.
-
-The application will own authorization/business rules such as URL ownership.
+Implemented via self-hosted **Better Auth**:
+- Handles email/password signup, login, session management, and sign-out under `/api/auth/*`.
+- Connected to shared PostgreSQL pool (`src/config/database.ts`).
+- Managed tables: `user`, `session`, `account`, `verification` (introduced via migration `add-better-auth-tables`).
+- Handler mounted in `src/app.ts` via `toNodeHandler(auth)` before `express.json()`.
+- Endpoints under `/api/v1/urls/*` remain public for now until Authorization / URL ownership is introduced.
 
 ---
 
@@ -930,7 +921,13 @@ Current roadmap:
    - Added UrlService resolution expiry check returning 410 Gone for expired URLs
    - Added unit and integration test coverage
 
-4. Better Auth
+4. ~~Better Auth~~
+   Done:
+   - Integrated Better Auth with Express (`/api/auth/*`).
+   - Connected Better Auth to existing PostgreSQL database pool.
+   - Added Better Auth schema (`user`, `session`, `account`, `verification`) via migration system.
+   - Added email/password authentication & session management.
+   - Added integration tests for authentication endpoints (`tests/integration/auth.api.integration.test.ts`).
 
 5. Authorization / URL ownership
 
@@ -960,7 +957,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Better Auth
+Authorization / URL ownership
 ```
 
 ---
