@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { RequestHandler, Router } from 'express';
 
 import { controller } from '../bootstrap/url.bootstrap';
 import { validate } from '../middleware/validate.middleware';
@@ -21,8 +21,8 @@ router.get(
   requireAuth,
   validate({
     query: listUrlsQuerySchema,
-  }),
-  controller.list.bind(controller)
+  }) as unknown as RequestHandler,
+  controller.list.bind(controller) as unknown as RequestHandler
 );
 
 router.get(

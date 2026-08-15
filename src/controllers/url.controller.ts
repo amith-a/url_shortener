@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
-import { ParsedQs } from 'qs';
 
 import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto';
 import type { UrlService } from '../services/url.service';
@@ -21,15 +20,15 @@ export class UrlController {
   }
 
   async list(
-    req: Request<ParamsDictionary, unknown, unknown, ParsedQs>,
+    req: Request<ParamsDictionary, unknown, unknown, ListUrlsQueryDto>,
     res: Response
   ): Promise<void> {
-    const query = req.query as unknown as ListUrlsQueryDto;
     const userId = req.user!.id;
+
     const result = await this.service.list(
       userId,
-      query.page,
-      query.limit
+      req.query.page,
+      req.query.limit
     );
 
     res.status(200).json(result);
