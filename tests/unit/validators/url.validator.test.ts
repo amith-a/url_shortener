@@ -68,7 +68,7 @@ describe('url.validator', () => {
     it('should reject invalid short codes', () => {
       const invalidCodes = [
         '',
-        '123456789', // > 8 chars
+        'a'.repeat(51), // > 50 chars
         'code_123', // contains underscore
         'code-123', // contains hyphen
         'code!',

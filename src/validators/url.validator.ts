@@ -56,7 +56,7 @@ export const getUrlSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .max(8)
+    .max(50)
     .regex(/^[A-Za-z0-9]+$/, 'Invalid short code'),
 });
 
