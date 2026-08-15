@@ -49,6 +49,11 @@ export const urlSchema = z.object({
     .max(50, 'Custom alias must not exceed 50 characters')
     .regex(/^[A-Za-z0-9]+$/, 'Invalid custom alias format')
     .optional(),
+  expiresAt: z
+    .string()
+    .datetime({ offset: true, message: 'Invalid ISO 8601 date format with timezone offset' })
+    .refine((val) => new Date(val) > new Date(), 'Expiration time must be in the future')
+    .optional(),
 });
 
 export const getUrlSchema = z.object({

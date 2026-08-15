@@ -3,4 +3,5 @@ export interface UrlDto {
   shortCode: string;
   originalUrl: string;
   createdAt: Date;
+  expiresAt: Date | null;
 }

@@ -20,6 +20,7 @@ describe('UrlRepository', () => {
         short_code: 'abc12345',
         original_url: 'https://example.com',
         created_at: new Date(),
+        expires_at: null,
       };
 
       vi.spyOn(pool, 'query').mockImplementation(
@@ -37,6 +38,7 @@ describe('UrlRepository', () => {
         id: 'uuid-1',
         shortCode: 'abc12345',
         originalUrl: 'https://example.com',
+        expiresAt: null,
       });
 
       expect(pool.query).toHaveBeenCalledTimes(1);
@@ -45,6 +47,7 @@ describe('UrlRepository', () => {
         shortCode: mockRow.short_code,
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
+        expiresAt: mockRow.expires_at,
       });
     });
 
@@ -65,6 +68,7 @@ describe('UrlRepository', () => {
           id: 'uuid-1',
           shortCode: 'abc12345',
           originalUrl: 'https://example.com',
+          expiresAt: null,
         })
       ).rejects.toThrow(AppError);
     });
@@ -77,6 +81,7 @@ describe('UrlRepository', () => {
         short_code: 'abc12345',
         original_url: 'https://example.com',
         created_at: new Date(),
+        expires_at: null,
       };
 
       vi.spyOn(pool, 'query').mockImplementation(
@@ -97,6 +102,7 @@ describe('UrlRepository', () => {
         shortCode: mockRow.short_code,
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
+        expiresAt: mockRow.expires_at,
       });
     });
 

@@ -3,4 +3,5 @@ export interface UrlRow {
   short_code: string;
   original_url: string;
   created_at: Date;
+  expires_at: Date | null;
 }

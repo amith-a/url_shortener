@@ -23,6 +23,7 @@ describe('UrlService', () => {
         shortCode: 'abc12345',
         originalUrl: 'https://example.com',
         createdAt: new Date(),
+        expiresAt: null,
       });
 
       const result = await service.create({ originalUrl: 'https://example.com' });
@@ -38,6 +39,7 @@ describe('UrlService', () => {
         shortCode: 'existing',
         originalUrl: 'https://existing.com',
         createdAt: new Date(),
+        expiresAt: null,
       };
 
       vi.mocked(repository.findByShortCode)
@@ -49,6 +51,7 @@ describe('UrlService', () => {
         shortCode: 'newcode1',
         originalUrl: 'https://example.com',
         createdAt: new Date(),
+        expiresAt: null,
       });
 
       const result = await service.create({ originalUrl: 'https://example.com' });
@@ -71,6 +74,7 @@ describe('UrlService', () => {
           shortCode: 'retry123',
           originalUrl: 'https://example.com',
           createdAt: new Date(),
+          expiresAt: null,
         });
 
       const result = await service.create({ originalUrl: 'https://example.com' });
@@ -100,6 +104,7 @@ describe('UrlService', () => {
         shortCode: 'myCustomAlias',
         originalUrl: 'https://example.com',
         createdAt: new Date(),
+        expiresAt: null,
       });
 
       const result = await service.create({
@@ -143,10 +148,40 @@ describe('UrlService', () => {
         shortCode: 'abc12345',
         originalUrl: 'https://example.com',
         createdAt: new Date(),
+        expiresAt: null,
       });
 
       const url = await service.resolveShortCode('abc12345');
       expect(url).toBe('https://example.com');
+    });
+
+    it('should return original URL when expiresAt is in the future', async () => {
+      const futureDate = new Date(Date.now() + 86400000);
+      vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
+        id: 'uuid-1',
+        shortCode: 'future12',
+        originalUrl: 'https://example.com',
+        createdAt: new Date(),
+        expiresAt: futureDate,
+      });
+
+      const url = await service.resolveShortCode('future12');
+      expect(url).toBe('https://example.com');
+    });
+
+    it('should throw GoneError when URL has expired', async () => {
+      const pastDate = new Date(Date.now() - 1000);
+      vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
+        id: 'uuid-1',
+        shortCode: 'expired1',
+        originalUrl: 'https://example.com',
+        createdAt: new Date(),
+        expiresAt: pastDate,
+      });
+
+      await expect(service.resolveShortCode('expired1')).rejects.toThrow(
+        'URL has expired'
+      );
     });
 
     it('should throw NotFoundError when short code does not exist', async () => {

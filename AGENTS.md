@@ -547,11 +547,9 @@ For every roadmap feature, follow this process:
 Do not implement multiple unrelated roadmap features in one change unless
 explicitly requested.
 
----
-
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after custom aliases implementation._
+_Last updated: 2026-08-15, after URL expiration implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -573,23 +571,8 @@ Currently implemented:
 AppError
 NotFoundError (404)
 ConflictError (409)
-```
-
-The next planned error class is:
-
-```text
 GoneError (410)
 ```
-
-for expired URLs.
-
-Later:
-
-```text
-GoneError (410)
-```
-
-for expired URLs.
 
 ---
 
@@ -734,28 +717,23 @@ make aliases a genuinely independent feature.
 
 ## URL Expiration
 
-Not implemented yet.
-
-Planned schema change:
+Implemented behavior:
 
 ```text
-expires_at TIMESTAMPTZ NULL
+POST /api/v1/urls
+{
+  "originalUrl": "https://example.com",
+  "expiresAt": "2026-08-20T12:00:00+05:30"
+}
 ```
 
-`NULL` means the URL does not expire.
+`expiresAt` is optional (ISO 8601 string requiring a timezone offset).
 
-When a URL has expired, the redirect endpoint should return:
+Stored in PostgreSQL as `expires_at TIMESTAMPTZ NULL` (`NULL` means the URL does not expire).
 
-```text
-410 Gone
-```
-
-rather than redirecting.
-
-The expired URL should not necessarily be immediately deleted.
-
-Future background cleanup may be considered after the core functionality
-is implemented.
+When resolving short code (`GET /api/v1/urls/:shortCode`), `UrlService` evaluates `expiresAt`:
+- If `expiresAt` is in the past (`expiresAt <= NOW()`), returns `410 Gone` via `GoneError`.
+- If active or non-expiring, redirects with `302 Found`.
 
 ---
 
@@ -939,13 +917,13 @@ Current roadmap:
    - Updated UrlService to handle customAlias directly and map PG 23505 to ConflictError
    - Added unit and integration test coverage
 
-3. URL expiration
-   Requires:
-   - expires_at migration
-   - expiration validation
-   - GoneError (410)
-   - redirect behavior
-   - tests
+3. ~~URL expiration~~
+   Done:
+   - Added expires_at TIMESTAMPTZ migration
+   - Added ISO 8601 timezone offset validation (z.string().datetime({ offset: true }))
+   - Added GoneError (410)
+   - Added UrlService resolution expiry check returning 410 Gone for expired URLs
+   - Added unit and integration test coverage
 
 4. Delete URLs
 
@@ -977,7 +955,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-URL expiration
+Delete URLs
 ```
 
 ---

@@ -11,21 +11,24 @@ export class UrlRepository implements IUrlRepository {
       INSERT INTO urls (
         id,
         short_code,
-        original_url
+        original_url,
+        expires_at
       )
       VALUES (
         $1,
         $2,
-        $3
+        $3,
+        $4
       )
       RETURNING
         id,
         short_code,
         original_url,
-        created_at;
+        created_at,
+        expires_at;
     `;
 
-    const values = [urlData.id, urlData.shortCode, urlData.originalUrl];
+    const values = [urlData.id, urlData.shortCode, urlData.originalUrl, urlData.expiresAt];
 
     const result = await pool.query<UrlRow>(query, values);
 
@@ -44,7 +47,8 @@ export class UrlRepository implements IUrlRepository {
         id,
         short_code,
         original_url,
-        created_at
+        created_at,
+        expires_at
       FROM urls
       WHERE short_code = $1;
     `;
@@ -66,6 +70,7 @@ export class UrlRepository implements IUrlRepository {
       shortCode: row.short_code,
       originalUrl: row.original_url,
       createdAt: row.created_at,
+      expiresAt: row.expires_at,
     };
   }
 }

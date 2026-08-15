@@ -6,6 +6,7 @@ import { CreateUrlDto } from '../dto/create-url.dto';
 import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
 import { NotFoundError } from '../errors/not-found.error';
 import { ConflictError } from '../errors/conflict.error';
+import { GoneError } from '../errors/gone.error';
 import AppError from '../errors/app-error';
 import { logger } from '../config/logger';
 
@@ -21,6 +22,7 @@ export class UrlService {
 
   async create(request: CreateShortUrlRequestDto): Promise<UrlDto> {
     const id = this.generateId();
+    const expiresAt = request.expiresAt ? new Date(request.expiresAt) : null;
 
     if (request.customAlias) {
       try {
@@ -28,6 +30,7 @@ export class UrlService {
           id,
           shortCode: request.customAlias,
           originalUrl: request.originalUrl,
+          expiresAt,
         };
 
         const createdUrl = await this.repository.create(dto);
@@ -66,6 +69,7 @@ export class UrlService {
           id,
           shortCode,
           originalUrl: request.originalUrl,
+          expiresAt,
         };
 
         const createdUrl = await this.repository.create(dto);
@@ -106,6 +110,14 @@ export class UrlService {
         'Short code resolution failed: resource not found'
       );
       throw new NotFoundError('Short URL not found');
+    }
+
+    if (response.expiresAt !== null && response.expiresAt.getTime() <= Date.now()) {
+      logger.warn(
+        { shortCode, expiresAt: response.expiresAt },
+        'Short code resolution failed: URL has expired'
+      );
+      throw new GoneError('URL has expired');
     }
 
     logger.debug({ shortCode }, 'Short code resolved successfully');

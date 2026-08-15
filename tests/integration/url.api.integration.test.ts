@@ -17,6 +17,7 @@ describe('API Integration Tests (Mocked DB)', () => {
         short_code: 'abc12345',
         original_url: 'https://example.com/long-url-path',
         created_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: null,
       };
 
       // Mock DB lookup (no collision) and DB insert
@@ -108,6 +109,7 @@ describe('API Integration Tests (Mocked DB)', () => {
           short_code: customAlias,
           original_url: 'https://example.com/alias-target',
           created_at: new Date('2026-01-01T00:00:00.000Z'),
+          expires_at: null,
         };
 
         vi.spyOn(pool, 'query').mockImplementationOnce(
@@ -171,6 +173,57 @@ describe('API Integration Tests (Mocked DB)', () => {
         expect(response.body).toHaveProperty('message', 'Validation failed');
       }
     });
+    it('should create short URL with valid future expiresAt containing timezone offset', async () => {
+      const validFutureTimestamps = [
+        '2026-08-20T12:00:00+05:30',
+        '2026-08-20T06:30:00Z',
+      ];
+
+      for (const expiresAt of validFutureTimestamps) {
+        const mockRow: UrlRow = {
+          id: 'uuid-exp-1',
+          short_code: 'exp12345',
+          original_url: 'https://example.com/exp-target',
+          created_at: new Date('2026-01-01T00:00:00.000Z'),
+          expires_at: new Date(expiresAt),
+        };
+
+        vi.spyOn(pool, 'query')
+          .mockImplementationOnce(
+            async () => ({ rows: [] }) as unknown as QueryResult<UrlRow>
+          )
+          .mockImplementationOnce(
+            async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
+          );
+
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
+
+        expect(response.status).toBe(201);
+        expect(response.body).toHaveProperty('expiresAt');
+        expect(response.body.expiresAt).not.toBeNull();
+      }
+    });
+
+    it('should return 400 Bad Request when expiresAt lacks timezone offset or is in the past', async () => {
+      const invalidTimestamps = [
+        '2026-08-20T12:00:00', // Missing timezone offset/Z
+        '2020-01-01T00:00:00Z', // Past date
+        'invalid-date-string', // Malformed date
+      ];
+
+      for (const expiresAt of invalidTimestamps) {
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('message', 'Validation failed');
+        expect(response.body.errors).toHaveProperty('expiresAt');
+      }
+    });
   });
 
   describe('GET /api/v1/urls/:shortCode', () => {
@@ -180,6 +233,7 @@ describe('API Integration Tests (Mocked DB)', () => {
         short_code: 'abc12345',
         original_url: 'https://example.com/redirect-target',
         created_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: null,
       };
 
       vi.spyOn(pool, 'query').mockImplementationOnce(
@@ -196,6 +250,29 @@ describe('API Integration Tests (Mocked DB)', () => {
       expect(response.headers['cache-control']).toBe(
         'no-cache, no-store, must-revalidate'
       );
+    });
+
+    it('should return 410 Gone when short URL has expired', async () => {
+      const pastDate = new Date(Date.now() - 60000);
+      const mockRow: UrlRow = {
+        id: 'uuid-expired',
+        short_code: 'expired1',
+        original_url: 'https://example.com/expired-target',
+        created_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: pastDate,
+      };
+
+      vi.spyOn(pool, 'query').mockImplementationOnce(
+        async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
+      );
+
+      const response = await request(app).get('/api/v1/urls/expired1');
+
+      expect(response.status).toBe(410);
+      expect(response.body).toEqual({
+        success: false,
+        message: 'URL has expired',
+      });
     });
 
     it('should return 404 Not Found when short code does not exist', async () => {
@@ -230,6 +307,7 @@ describe('API Integration Tests (Mocked DB)', () => {
         short_code: customAlias,
         original_url: 'https://example.com/redirect-target',
         created_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: null,
       };
 
       vi.spyOn(pool, 'query').mockImplementationOnce(
