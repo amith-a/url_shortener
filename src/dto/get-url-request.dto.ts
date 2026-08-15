@@ -1,3 +1,3 @@
-export interface GetUrlRequestDto {
-  shortCode: string;
-}
+import { GetUrlRequest } from '../validators/url.validator';
+
+export type GetUrlRequestDto = GetUrlRequest;

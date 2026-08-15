@@ -52,3 +52,6 @@ export const getUrlSchema = z.object({
     .max(8)
     .regex(/^[A-Za-z0-9]+$/, 'Invalid short code'),
 });
+
+export type CreateShortUrlRequest = z.infer<typeof urlSchema>;
+export type GetUrlRequest = z.infer<typeof getUrlSchema>;
