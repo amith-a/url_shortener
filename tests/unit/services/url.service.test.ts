@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UrlService } from '../../../src/services/url.service';
-import type { UrlRepository } from '../../../src/repositories/url.repository';
+import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
 
 describe('UrlService', () => {
-  let repository: UrlRepository;
+  let repository: IUrlRepository;
   let service: UrlService;
 
   beforeEach(() => {
     repository = {
       create: vi.fn(),
       findByShortCode: vi.fn(),
-    } as unknown as UrlRepository;
+    };
 
     service = new UrlService(repository);
   });

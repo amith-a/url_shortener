@@ -3,7 +3,7 @@ import { UrlDto } from '../dto/url.dto';
 import { randomUUID } from 'node:crypto';
 import { generateShortCode } from '../utils/short-code';
 import { CreateUrlDto } from '../dto/create-url.dto';
-import type { UrlRepository } from '../repositories/url.repository';
+import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
 import { NotFoundError } from '../errors/not-found.error';
 import AppError from '../errors/app-error';
 import { logger } from '../config/logger';
@@ -12,7 +12,7 @@ const PG_UNIQUE_VIOLATION = '23505';
 const MAX_ATTEMPTS = 5;
 
 export class UrlService {
-  constructor(private readonly repository: UrlRepository) {}
+  constructor(private readonly repository: IUrlRepository) {}
 
   private generateId(): string {
     return randomUUID();

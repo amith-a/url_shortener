@@ -3,8 +3,9 @@ import pool from '../config/database';
 import { UrlDto } from '../dto/url.dto';
 import { UrlRow } from './types/url.row';
 import AppError from '../errors/app-error';
+import { IUrlRepository } from './interfaces/url.repository.interface';
 
-export class UrlRepository {
+export class UrlRepository implements IUrlRepository {
   async create(urlData: CreateUrlDto): Promise<UrlDto> {
     const query = `
       INSERT INTO urls (
