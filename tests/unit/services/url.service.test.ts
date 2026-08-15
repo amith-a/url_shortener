@@ -10,6 +10,7 @@ describe('UrlService', () => {
     repository = {
       create: vi.fn(),
       findByShortCode: vi.fn(),
+      deleteByIdAndUserId: vi.fn(),
     };
 
     service = new UrlService(repository);
@@ -24,12 +25,18 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
+        userId: 'user-123',
       });
 
-      const result = await service.create({ originalUrl: 'https://example.com' });
+      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
 
       expect(repository.findByShortCode).toHaveBeenCalledTimes(1);
       expect(repository.create).toHaveBeenCalledTimes(1);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-123',
+        })
+      );
       expect(result.originalUrl).toBe('https://example.com');
     });
 
@@ -40,6 +47,7 @@ describe('UrlService', () => {
         originalUrl: 'https://existing.com',
         createdAt: new Date(),
         expiresAt: null,
+        userId: 'user-123',
       };
 
       vi.mocked(repository.findByShortCode)
@@ -52,9 +60,10 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
+        userId: 'user-123',
       });
 
-      const result = await service.create({ originalUrl: 'https://example.com' });
+      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
 
       expect(repository.findByShortCode).toHaveBeenCalledTimes(2);
       expect(repository.create).toHaveBeenCalledTimes(1);
@@ -75,9 +84,10 @@ describe('UrlService', () => {
           originalUrl: 'https://example.com',
           createdAt: new Date(),
           expiresAt: null,
+          userId: 'user-123',
         });
 
-      const result = await service.create({ originalUrl: 'https://example.com' });
+      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
 
       expect(repository.create).toHaveBeenCalledTimes(2);
       expect(result.shortCode).toBe('retry123');
@@ -92,7 +102,7 @@ describe('UrlService', () => {
       vi.mocked(repository.create).mockRejectedValue(pgUniqueError);
 
       await expect(
-        service.create({ originalUrl: 'https://example.com' })
+        service.create({ originalUrl: 'https://example.com' }, 'user-123')
       ).rejects.toThrow('Failed to create short URL due to repeated collisions');
 
       expect(repository.create).toHaveBeenCalledTimes(5);
@@ -105,12 +115,16 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
+        userId: 'user-123',
       });
 
-      const result = await service.create({
-        originalUrl: 'https://example.com',
-        customAlias: 'myCustomAlias',
-      });
+      const result = await service.create(
+        {
+          originalUrl: 'https://example.com',
+          customAlias: 'myCustomAlias',
+        },
+        'user-123'
+      );
 
       expect(repository.findByShortCode).not.toHaveBeenCalled();
       expect(repository.create).toHaveBeenCalledTimes(1);
@@ -118,6 +132,7 @@ describe('UrlService', () => {
         expect.objectContaining({
           shortCode: 'myCustomAlias',
           originalUrl: 'https://example.com',
+          userId: 'user-123',
         })
       );
       expect(result.shortCode).toBe('myCustomAlias');
@@ -130,14 +145,40 @@ describe('UrlService', () => {
       vi.mocked(repository.create).mockRejectedValueOnce(pgUniqueError);
 
       await expect(
-        service.create({
-          originalUrl: 'https://example.com',
-          customAlias: 'duplicateAlias',
-        })
+        service.create(
+          {
+            originalUrl: 'https://example.com',
+            customAlias: 'duplicateAlias',
+          },
+          'user-123'
+        )
       ).rejects.toThrow('Custom alias is already in use');
 
       expect(repository.findByShortCode).not.toHaveBeenCalled();
       expect(repository.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('deleteUrl', () => {
+    it('should delete URL successfully when id and userId match', async () => {
+      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(true);
+
+      await expect(
+        service.deleteUrl('url-123', 'user-123')
+      ).resolves.toBeUndefined();
+
+      expect(repository.deleteByIdAndUserId).toHaveBeenCalledWith(
+        'url-123',
+        'user-123'
+      );
+    });
+
+    it('should throw NotFoundError when deletion fails (no matching row)', async () => {
+      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(false);
+
+      await expect(
+        service.deleteUrl('url-123', 'other-user')
+      ).rejects.toThrow('Short URL not found');
     });
   });
 
@@ -149,6 +190,7 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
+        userId: 'user-123',
       });
 
       const url = await service.resolveShortCode('abc12345');
@@ -163,6 +205,7 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: futureDate,
+        userId: 'user-123',
       });
 
       const url = await service.resolveShortCode('future12');
@@ -177,6 +220,7 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: pastDate,
+        userId: 'user-123',
       });
 
       await expect(service.resolveShortCode('expired1')).rejects.toThrow(

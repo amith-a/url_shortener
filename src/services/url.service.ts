@@ -20,7 +20,10 @@ export class UrlService {
     return randomUUID();
   }
 
-  async create(request: CreateShortUrlRequestDto): Promise<UrlDto> {
+  async create(
+    request: CreateShortUrlRequestDto,
+    userId: string
+  ): Promise<UrlDto> {
     const id = this.generateId();
     const expiresAt = request.expiresAt ? new Date(request.expiresAt) : null;
 
@@ -31,11 +34,12 @@ export class UrlService {
           shortCode: request.customAlias,
           originalUrl: request.originalUrl,
           expiresAt,
+          userId,
         };
 
         const createdUrl = await this.repository.create(dto);
         logger.info(
-          { urlId: createdUrl.id, shortCode: createdUrl.shortCode },
+          { urlId: createdUrl.id, shortCode: createdUrl.shortCode, userId },
           'Short URL with custom alias created successfully'
         );
         return createdUrl;
@@ -70,11 +74,12 @@ export class UrlService {
           shortCode,
           originalUrl: request.originalUrl,
           expiresAt,
+          userId,
         };
 
         const createdUrl = await this.repository.create(dto);
         logger.info(
-          { urlId: createdUrl.id, shortCode: createdUrl.shortCode },
+          { urlId: createdUrl.id, shortCode: createdUrl.shortCode, userId },
           'Short URL created successfully'
         );
         return createdUrl;
@@ -99,6 +104,20 @@ export class UrlService {
       500,
       'Failed to create short URL due to repeated collisions'
     );
+  }
+
+  async deleteUrl(id: string, userId: string): Promise<void> {
+    const deleted = await this.repository.deleteByIdAndUserId(id, userId);
+
+    if (!deleted) {
+      logger.warn(
+        { id, userId },
+        'URL deletion failed: URL not found or ownership mismatch'
+      );
+      throw new NotFoundError('Short URL not found');
+    }
+
+    logger.info({ id, userId }, 'Short URL deleted successfully');
   }
 
   async resolveShortCode(shortCode: string): Promise<string> {

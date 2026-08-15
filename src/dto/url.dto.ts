@@ -4,4 +4,5 @@ export interface UrlDto {
   originalUrl: string;
   createdAt: Date;
   expiresAt: Date | null;
+  userId: string | null;
 }

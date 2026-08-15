@@ -549,7 +549,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-15, after Better Auth implementation._
+_Last updated: 2026-08-15, after Authorization / URL ownership & Delete URLs implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -569,6 +569,7 @@ Currently implemented:
 
 ```text
 AppError
+UnauthorizedError (401)
 NotFoundError (404)
 ConflictError (409)
 GoneError (410)
@@ -584,15 +585,19 @@ Currently:
 POST /api/v1/urls
 ```
 
-Creates a short URL.
+Creates a short URL (requires authentication; stores `session.user.id`).
 
 ```text
 GET /api/v1/urls/:shortCode
 ```
 
-Resolves the short code and redirects to the original URL.
+Resolves the short code and redirects to the original URL (public).
 
-No other URL-management endpoints are currently implemented.
+```text
+DELETE /api/v1/urls/:id
+```
+
+Deletes a short URL owned by the authenticated user (returns 204 No Content for owner, 404 Not Found for non-owner/non-existent).
 
 ---
 
@@ -631,6 +636,7 @@ original_url
 short_code
 created_at
 expires_at
+user_id
 ```
 
 Current properties:
@@ -641,6 +647,7 @@ original_url TEXT / NOT NULL
 short_code   VARCHAR(50) / UNIQUE / NOT NULL
 created_at   TIMESTAMPTZ / NOT NULL
 expires_at   TIMESTAMPTZ / NULL
+user_id      TEXT / NULL / FK to "user"("id")
 ```
 
 Schema changes must be made through migrations.
@@ -735,15 +742,19 @@ When resolving short code (`GET /api/v1/urls/:shortCode`), `UrlService` evaluate
 
 ## Delete URLs
 
-Not implemented yet.
-
-Planned endpoint:
+Implemented via:
 
 ```text
 DELETE /api/v1/urls/:id
 ```
 
-Once authentication exists, deletion must enforce URL ownership.
+Requires authentication via `requireAuth` middleware. Enforces URL ownership atomically in the database using:
+
+```sql
+DELETE FROM urls WHERE id = $1 AND user_id = $2 RETURNING id;
+```
+
+Returns `204 No Content` when deleted by the URL owner. Returns `404 Not Found` when attempted by a non-owner or for a non-existent URL ID.
 
 ---
 
@@ -929,9 +940,18 @@ Current roadmap:
    - Added email/password authentication & session management.
    - Added integration tests for authentication endpoints (`tests/integration/auth.api.integration.test.ts`).
 
-5. Authorization / URL ownership
+5. ~~Authorization / URL ownership~~
+   Done:
+   - Protected `POST /api/v1/urls` with `requireAuth` middleware using Better Auth session lookup.
+   - Added nullable `user_id` column to `urls` table with foreign key `fk_urls_user` (`ON DELETE CASCADE`).
+   - Updated `UrlService.create` to attach `session.user.id` to created URLs.
+   - `GET /api/v1/urls/:shortCode` remains completely public.
 
-6. Delete URLs
+6. ~~Delete URLs~~
+   Done:
+   - Implemented `DELETE /api/v1/urls/:id` protected by `requireAuth`.
+   - Added atomic `deleteByIdAndUserId(id, userId)` repository query returning 204 No Content for owner deletion or 404 Not Found for non-owners/non-existent URLs.
+   - Added unit and real PostgreSQL test database integration coverage.
 
 7. Pagination / URL listing
 
@@ -957,7 +977,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Authorization / URL ownership
+Pagination / URL listing
 ```
 
 ---

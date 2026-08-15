@@ -205,6 +205,7 @@ npm run test:coverage
 | `short_code` | `VARCHAR(50)` | `UNIQUE, NOT NULL` | Generated short code or custom alias (3–50 chars) |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | Timestamp of creation |
 | `expires_at` | `TIMESTAMPTZ` | `NULL` | Optional expiration timestamp (`NULL` = no expiration) |
+| `user_id` | `TEXT` | `NULL, FK -> "user"("id")` | Owner user ID (`NULL` for pre-auth URLs) |
 
 > Additional tables managed by Better Auth: `user`, `session`, `account`, `verification`.
 
@@ -222,7 +223,7 @@ npm run test:coverage
 
 ### URL Operations (`/api/v1/urls/*`)
 
-#### 1. Create Short URL
+#### 1. Create Short URL *(Authentication Required)*
 `POST /api/v1/urls`
 
 **Request Body**:
@@ -239,19 +240,31 @@ npm run test:coverage
 * `expiresAt` *(optional)*: ISO 8601 datetime with timezone offset (must be in the future).
 
 **Responses**:
-* `201 Created`: Returns created URL object.
+* `201 Created`: Returns created URL object with owner `userId`.
+* `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
 * `400 Bad Request`: Validation failure (malformed URL, invalid alias, past date, or missing timezone offset).
 * `409 Conflict`: Custom alias is already in use.
 
 ---
 
-#### 2. Redirect to Original URL
+#### 2. Redirect to Original URL *(Public)*
 `GET /api/v1/urls/:shortCode`
 
 **Responses**:
 * `302 Found`: Redirects to original URL with `Cache-Control: no-cache, no-store, must-revalidate`.
 * `404 Not Found`: Short URL does not exist.
 * `410 Gone`: URL has expired (`expiresAt <= NOW()`).
+
+---
+
+#### 3. Delete Short URL *(Authentication Required)*
+`DELETE /api/v1/urls/:id`
+
+**Responses**:
+* `204 No Content`: Short URL deleted successfully by the owner.
+* `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
+* `404 Not Found`: Short URL does not exist or is owned by another user.
+
 
 
 

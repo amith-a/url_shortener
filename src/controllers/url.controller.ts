@@ -12,9 +12,17 @@ export class UrlController {
     req: Request<ParamsDictionary, unknown, CreateShortUrlRequestDto>,
     res: Response
   ): Promise<void> {
-    const url = await this.service.create(req.body);
+    const userId = req.user!.id;
+    const url = await this.service.create(req.body, userId);
 
     res.status(201).json(url);
+  }
+
+  async delete(req: Request<{ id: string }>, res: Response): Promise<void> {
+    const userId = req.user!.id;
+    await this.service.deleteUrl(req.params.id, userId);
+
+    res.status(204).send();
   }
 
   async redirect(req: Request<GetUrlRequestDto>, res: Response): Promise<void> {

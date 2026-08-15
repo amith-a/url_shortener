@@ -21,6 +21,7 @@ describe('UrlRepository', () => {
         original_url: 'https://example.com',
         created_at: new Date(),
         expires_at: null,
+        user_id: 'user-123',
       };
 
       vi.spyOn(pool, 'query').mockImplementation(
@@ -39,6 +40,7 @@ describe('UrlRepository', () => {
         shortCode: 'abc12345',
         originalUrl: 'https://example.com',
         expiresAt: null,
+        userId: 'user-123',
       });
 
       expect(pool.query).toHaveBeenCalledTimes(1);
@@ -48,6 +50,7 @@ describe('UrlRepository', () => {
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
         expiresAt: mockRow.expires_at,
+        userId: mockRow.user_id,
       });
     });
 
@@ -69,6 +72,7 @@ describe('UrlRepository', () => {
           shortCode: 'abc12345',
           originalUrl: 'https://example.com',
           expiresAt: null,
+          userId: 'user-123',
         })
       ).rejects.toThrow(AppError);
     });
@@ -82,6 +86,7 @@ describe('UrlRepository', () => {
         original_url: 'https://example.com',
         created_at: new Date(),
         expires_at: null,
+        user_id: 'user-123',
       };
 
       vi.spyOn(pool, 'query').mockImplementation(
@@ -103,6 +108,7 @@ describe('UrlRepository', () => {
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
         expiresAt: mockRow.expires_at,
+        userId: mockRow.user_id,
       });
     });
 
@@ -121,6 +127,46 @@ describe('UrlRepository', () => {
       const result = await repository.findByShortCode('nonexistent');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('deleteByIdAndUserId', () => {
+    it('should return true when a row is deleted', async () => {
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [{ id: 'uuid-1' }],
+            command: 'DELETE',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<{ id: string }>
+      );
+
+      const result = await repository.deleteByIdAndUserId('uuid-1', 'user-123');
+
+      expect(result).toBe(true);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM urls'),
+        ['uuid-1', 'user-123']
+      );
+    });
+
+    it('should return false when no row is deleted (ownership mismatch or not found)', async () => {
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [],
+            command: 'DELETE',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<{ id: string }>
+      );
+
+      const result = await repository.deleteByIdAndUserId('uuid-1', 'other-user');
+
+      expect(result).toBe(false);
     });
   });
 });

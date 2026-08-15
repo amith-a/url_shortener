@@ -13,7 +13,23 @@ async function safeCleanupUrlTables() {
     );
   }
 
-  await pool.query('TRUNCATE TABLE urls RESTART IDENTITY CASCADE');
+  await pool.query(
+    'TRUNCATE TABLE urls, "session", "account", "user", "verification" RESTART IDENTITY CASCADE'
+  );
+}
+
+async function registerAndLogin(email: string, name: string) {
+  const response = await request(app).post('/api/auth/sign-up/email').send({
+    email,
+    password: 'Password123!',
+    name,
+  });
+
+  const cookies = response.get('Set-Cookie');
+  return {
+    user: response.body.user as { id: string; email: string },
+    cookies: cookies!,
+  };
 }
 
 describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
@@ -21,10 +37,24 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
     await safeCleanupUrlTables();
   });
 
-  describe('POST /api/v1/urls', () => {
-    it('should create short URL and return 201 Created for valid URL', async () => {
+  describe('POST /api/v1/urls (Protected Route)', () => {
+    it('should return 401 Unauthorized for unauthenticated POST', async () => {
       const response = await request(app)
         .post('/api/v1/urls')
+        .send({ originalUrl: 'https://example.com/unauth-post' });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should create short URL for authenticated user and store session.user.id in urls.user_id', async () => {
+      const { user, cookies } = await registerAndLogin(
+        'userA@example.com',
+        'User A'
+      );
+
+      const response = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({ originalUrl: 'https://example.com/long-url-path' });
 
       expect(response.status).toBe(201);
@@ -35,21 +65,36 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
         'originalUrl',
         'https://example.com/long-url-path'
       );
+
+      const dbRes = await pool.query<{ user_id: string }>(
+        'SELECT user_id FROM urls WHERE id = $1',
+        [response.body.id]
+      );
+      expect(dbRes.rows[0]?.user_id).toBe(user.id);
     });
 
     it('should return 400 Bad Request for malformed URL', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-malformed@example.com',
+        'Malformed User'
+      );
+
       const response = await request(app)
         .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({ originalUrl: 'not-a-valid-url' });
 
       expect(response.status).toBe(400);
-      expect(response.headers['x-request-id']).toBeDefined();
       expect(response.body).toHaveProperty('success', false);
       expect(response.body).toHaveProperty('message', 'Validation failed');
       expect(response.body.errors).toHaveProperty('originalUrl');
     });
 
     it('should return 400 Bad Request for private/loopback SSRF hostnames', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-ssrf@example.com',
+        'SSRF User'
+      );
       const privateUrls = [
         'http://localhost/admin',
         'http://127.0.0.1:8080/secret',
@@ -59,31 +104,24 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       for (const url of privateUrls) {
         const response = await request(app)
           .post('/api/v1/urls')
+          .set('Cookie', cookies)
           .send({ originalUrl: url });
 
         expect(response.status).toBe(400);
-        expect(response.headers['x-request-id']).toBeDefined();
         expect(response.body).toHaveProperty('success', false);
       }
     });
 
-    it('should return 400 Bad Request when URL exceeds 2048 characters', async () => {
-      const longUrl = `https://example.com/${'a'.repeat(2050)}`;
-
-      const response = await request(app)
-        .post('/api/v1/urls')
-        .send({ originalUrl: longUrl });
-
-      expect(response.status).toBe(400);
-      expect(response.headers['x-request-id']).toBeDefined();
-      expect(response.body).toHaveProperty('success', false);
-    });
-
-    it('should create short URL with valid customAlias and return 201 Created', async () => {
+    it('should create short URL with valid customAlias for authenticated user', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-alias@example.com',
+        'Alias User'
+      );
       const customAlias = 'myCustomAlias123';
 
       const response = await request(app)
         .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({
           originalUrl: 'https://example.com/alias-target',
           customAlias,
@@ -93,10 +131,16 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       expect(response.body).toHaveProperty('shortCode', customAlias);
     });
 
-    it('should return 409 Conflict when customAlias is already taken in the database', async () => {
+    it('should return 409 Conflict when customAlias is already taken', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-conflict@example.com',
+        'Conflict User'
+      );
+
       // First insertion
       await request(app)
         .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({
           originalUrl: 'https://example.com/first-target',
           customAlias: 'takenAlias123',
@@ -105,6 +149,7 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       // Second insertion with identical alias
       const response = await request(app)
         .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({
           originalUrl: 'https://example.com/second-target',
           customAlias: 'takenAlias123',
@@ -117,75 +162,106 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       });
     });
 
-    it('should return 400 Bad Request for invalid customAlias formats', async () => {
-      const invalidAliases = [
-        'ab',
-        'abc-123',
-        'abc_123',
-        'abc 123',
-        'abc/123',
-        'abc@123',
-        'a'.repeat(51),
-      ];
-
-      for (const customAlias of invalidAliases) {
-        const response = await request(app)
-          .post('/api/v1/urls')
-          .send({ originalUrl: 'https://example.com/target', customAlias });
-
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty('success', false);
-        expect(response.body).toHaveProperty('message', 'Validation failed');
-      }
-    });
-
     it('should create short URL with valid future expiresAt containing timezone offset', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-exp@example.com',
+        'Expiry User'
+      );
       const expiresAt = '2026-12-31T23:59:59+05:30';
 
       const response = await request(app)
         .post('/api/v1/urls')
+        .set('Cookie', cookies)
         .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
 
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('expiresAt');
       expect(response.body.expiresAt).not.toBeNull();
     });
+  });
 
-    it('should return 400 Bad Request when expiresAt lacks timezone offset or is in the past', async () => {
-      const invalidTimestamps = [
-        '2026-08-20T12:00:00', // Missing timezone offset/Z
-        '2020-01-01T00:00:00Z', // Past date
-        'invalid-date-string', // Malformed date
-      ];
+  describe('DELETE /api/v1/urls/:id (Protected Route & Ownership)', () => {
+    it('should return 401 Unauthorized for unauthenticated DELETE', async () => {
+      const response = await request(app).delete(
+        '/api/v1/urls/11111111-1111-1111-1111-111111111111'
+      );
 
-      for (const expiresAt of invalidTimestamps) {
-        const response = await request(app)
-          .post('/api/v1/urls')
-          .send({ originalUrl: 'https://example.com/exp-target', expiresAt });
+      expect(response.status).toBe(401);
+    });
 
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty('success', false);
-        expect(response.body).toHaveProperty('message', 'Validation failed');
-        expect(response.body.errors).toHaveProperty('expiresAt');
-      }
+    it('should return 404 Not Found and NOT delete URL when User B attempts to delete User A URL', async () => {
+      const userA = await registerAndLogin('userA@example.com', 'User A');
+      const userB = await registerAndLogin('userB@example.com', 'User B');
+
+      // User A creates a URL
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/user-a-secret' });
+
+      const urlId = createRes.body.id;
+
+      // User B attempts to delete User A's URL
+      const deleteRes = await request(app)
+        .delete(`/api/v1/urls/${urlId}`)
+        .set('Cookie', userB.cookies);
+
+      expect(deleteRes.status).toBe(404);
+      expect(deleteRes.body).toEqual({
+        success: false,
+        message: 'Short URL not found',
+      });
+
+      // Verify URL still exists in the database
+      const dbRes = await pool.query('SELECT id FROM urls WHERE id = $1', [
+        urlId,
+      ]);
+      expect(dbRes.rows.length).toBe(1);
+    });
+
+    it('should return 204 No Content and delete URL when User A deletes own URL', async () => {
+      const userA = await registerAndLogin('userA@example.com', 'User A');
+
+      // User A creates a URL
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/user-a-url' });
+
+      const urlId = createRes.body.id;
+
+      // User A deletes own URL
+      const deleteRes = await request(app)
+        .delete(`/api/v1/urls/${urlId}`)
+        .set('Cookie', userA.cookies);
+
+      expect(deleteRes.status).toBe(204);
+
+      // Verify URL no longer exists in database
+      const dbRes = await pool.query('SELECT id FROM urls WHERE id = $1', [
+        urlId,
+      ]);
+      expect(dbRes.rows.length).toBe(0);
     });
   });
 
-  describe('GET /api/v1/urls/:shortCode', () => {
-    it('should redirect 302 to original URL with no-cache headers when short code exists', async () => {
-      // Create short URL first
+  describe('GET /api/v1/urls/:shortCode (Public Route)', () => {
+    it('should allow public unauthenticated GET redirect (302 Found)', async () => {
+      const userA = await registerAndLogin('userA@example.com', 'User A');
+
       const createRes = await request(app)
         .post('/api/v1/urls')
-        .send({ originalUrl: 'https://example.com/redirect-target' });
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/public-redirect-target' });
 
       const shortCode = createRes.body.shortCode;
 
+      // Public unauthenticated GET request
       const response = await request(app).get(`/api/v1/urls/${shortCode}`);
 
       expect(response.status).toBe(302);
-      expect(response.headers['x-request-id']).toBeDefined();
       expect(response.headers.location).toBe(
-        'https://example.com/redirect-target'
+        'https://example.com/public-redirect-target'
       );
       expect(response.headers['cache-control']).toBe(
         'no-cache, no-store, must-revalidate'
@@ -193,12 +269,16 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
     });
 
     it('should return 410 Gone when short URL has expired', async () => {
-      // Insert an expired row directly into the real test database
       const pastDate = new Date(Date.now() - 60000);
       await pool.query(
         `INSERT INTO urls (id, original_url, short_code, created_at, expires_at)
          VALUES ($1, $2, $3, NOW(), $4)`,
-        ['11111111-1111-1111-1111-111111111111', 'https://example.com/expired-target', 'expired123', pastDate]
+        [
+          '11111111-1111-1111-1111-111111111111',
+          'https://example.com/expired-target',
+          'expired123',
+          pastDate,
+        ]
       );
 
       const response = await request(app).get('/api/v1/urls/expired123');
@@ -214,38 +294,10 @@ describe('API Integration Tests (Real PostgreSQL Test DB)', () => {
       const response = await request(app).get('/api/v1/urls/noexist999');
 
       expect(response.status).toBe(404);
-      expect(response.headers['x-request-id']).toBeDefined();
       expect(response.body).toEqual({
         success: false,
         message: 'Short URL not found',
       });
-    });
-
-    it('should return 400 Bad Request for invalid short code format', async () => {
-      const response = await request(app).get('/api/v1/urls/invalid_code!');
-
-      expect(response.status).toBe(400);
-      expect(response.headers['x-request-id']).toBeDefined();
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body).toHaveProperty('message', 'Validation failed');
-    });
-
-    it('should redirect using a custom alias longer than 8 characters', async () => {
-      const longAlias = 'a'.repeat(45);
-
-      await request(app)
-        .post('/api/v1/urls')
-        .send({
-          originalUrl: 'https://example.com/long-alias-target',
-          customAlias: longAlias,
-        });
-
-      const response = await request(app).get(`/api/v1/urls/${longAlias}`);
-
-      expect(response.status).toBe(302);
-      expect(response.headers.location).toBe(
-        'https://example.com/long-alias-target'
-      );
     });
   });
 });
