@@ -6,7 +6,8 @@ import { logger } from './config/logger';
 const MAX_ATTEMPTS = 5;
 const INITIAL_DELAY_MS = 1000;
 
-export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function connectWithRetry(
   dbPool = pool,

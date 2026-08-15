@@ -6,13 +6,12 @@ import { getUrlSchema, urlSchema } from '../validators/url.validator';
 
 const router = Router();
 
-
 router.post(
   '/',
   validate({
     body: urlSchema,
   }),
-  controller.create.bind(controller),
+  controller.create.bind(controller)
 );
 
 router.get(
@@ -20,7 +19,7 @@ router.get(
   validate({
     params: getUrlSchema,
   }),
-  controller.redirect.bind(controller),
+  controller.redirect.bind(controller)
 );
 
 export default router;

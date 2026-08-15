@@ -14,7 +14,10 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 
   if (error instanceof AppError) {
     if (error.statusCode < 500) {
-      logger.warn({ ...context, statusCode: error.statusCode, message: error.message }, 'Operational error handled');
+      logger.warn(
+        { ...context, statusCode: error.statusCode, message: error.message },
+        'Operational error handled'
+      );
     } else {
       logger.error({ ...context, err: error }, 'Internal application error');
     }
@@ -27,7 +30,10 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 
   if (error instanceof ZodError) {
     const { fieldErrors } = z.flattenError(error);
-    logger.warn({ ...context, errors: fieldErrors }, 'Request validation failed');
+    logger.warn(
+      { ...context, errors: fieldErrors },
+      'Request validation failed'
+    );
 
     return res.status(400).json({
       success: false,
@@ -36,7 +42,10 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     });
   }
 
-  logger.error({ ...context, err: error }, 'Unhandled server error in HTTP pipeline');
+  logger.error(
+    { ...context, err: error },
+    'Unhandled server error in HTTP pipeline'
+  );
 
   return res.status(500).json({
     success: false,

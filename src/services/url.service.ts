@@ -31,12 +31,18 @@ export class UrlService {
         };
 
         const createdUrl = await this.repository.create(dto);
-        logger.info({ urlId: createdUrl.id, shortCode: createdUrl.shortCode }, 'Short URL with custom alias created successfully');
+        logger.info(
+          { urlId: createdUrl.id, shortCode: createdUrl.shortCode },
+          'Short URL with custom alias created successfully'
+        );
         return createdUrl;
       } catch (err: unknown) {
         const pgError = err as { code?: string };
         if (pgError.code === PG_UNIQUE_VIOLATION) {
-          logger.warn({ customAlias: request.customAlias }, 'Custom alias collision on DB insert');
+          logger.warn(
+            { customAlias: request.customAlias },
+            'Custom alias collision on DB insert'
+          );
           throw new ConflictError('Custom alias is already in use');
         }
         throw err;
@@ -48,7 +54,10 @@ export class UrlService {
 
       const existing = await this.repository.findByShortCode(shortCode);
       if (existing) {
-        logger.warn({ shortCode, attempt: attempt + 1 }, 'Short code collision detected via lookup, retrying');
+        logger.warn(
+          { shortCode, attempt: attempt + 1 },
+          'Short code collision detected via lookup, retrying'
+        );
         continue;
       }
 
@@ -60,27 +69,42 @@ export class UrlService {
         };
 
         const createdUrl = await this.repository.create(dto);
-        logger.info({ urlId: createdUrl.id, shortCode: createdUrl.shortCode }, 'Short URL created successfully');
+        logger.info(
+          { urlId: createdUrl.id, shortCode: createdUrl.shortCode },
+          'Short URL created successfully'
+        );
         return createdUrl;
       } catch (err: unknown) {
         const pgError = err as { code?: string };
         if (pgError.code === PG_UNIQUE_VIOLATION) {
-          logger.warn({ shortCode, attempt: attempt + 1 }, 'Short code collision detected on DB insert, retrying');
+          logger.warn(
+            { shortCode, attempt: attempt + 1 },
+            'Short code collision detected on DB insert, retrying'
+          );
           continue;
         }
         throw err;
       }
     }
 
-    logger.error({ attempts: MAX_ATTEMPTS }, 'Failed to generate unique short code after max attempts');
-    throw new AppError(500, 'Failed to create short URL due to repeated collisions');
+    logger.error(
+      { attempts: MAX_ATTEMPTS },
+      'Failed to generate unique short code after max attempts'
+    );
+    throw new AppError(
+      500,
+      'Failed to create short URL due to repeated collisions'
+    );
   }
 
   async resolveShortCode(shortCode: string): Promise<string> {
     const response = await this.repository.findByShortCode(shortCode);
 
     if (!response) {
-      logger.warn({ shortCode }, 'Short code resolution failed: resource not found');
+      logger.warn(
+        { shortCode },
+        'Short code resolution failed: resource not found'
+      );
       throw new NotFoundError('Short URL not found');
     }
 

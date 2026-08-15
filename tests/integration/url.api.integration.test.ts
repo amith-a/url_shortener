@@ -36,7 +36,10 @@ describe('API Integration Tests (Mocked DB)', () => {
       expect(response.headers['x-request-id']).toBeDefined();
       expect(response.body).toHaveProperty('id', 'uuid-123');
       expect(response.body).toHaveProperty('shortCode', 'abc12345');
-      expect(response.body).toHaveProperty('originalUrl', 'https://example.com/long-url-path');
+      expect(response.body).toHaveProperty(
+        'originalUrl',
+        'https://example.com/long-url-path'
+      );
     });
 
     it('should return 400 Bad Request for malformed URL', async () => {
@@ -97,7 +100,7 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should create short URL with valid customAlias and return 201 Created', async () => {
-      const validAliases = ['abc123', 'ABC123', '123456'];
+      const validAliases = ['abc123', 'ABC123', '123456', 'a'.repeat(50)];
 
       for (const customAlias of validAliases) {
         const mockRow: UrlRow = {
@@ -113,7 +116,10 @@ describe('API Integration Tests (Mocked DB)', () => {
 
         const response = await request(app)
           .post('/api/v1/urls')
-          .send({ originalUrl: 'https://example.com/alias-target', customAlias });
+          .send({
+            originalUrl: 'https://example.com/alias-target',
+            customAlias,
+          });
 
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('shortCode', customAlias);
@@ -121,7 +127,9 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should return 409 Conflict when customAlias is already taken', async () => {
-      const pgUniqueError = new Error('duplicate key value violates unique constraint');
+      const pgUniqueError = new Error(
+        'duplicate key value violates unique constraint'
+      );
       (pgUniqueError as unknown as { code: string }).code = '23505';
 
       vi.spyOn(pool, 'query').mockImplementationOnce(async () => {
@@ -130,7 +138,10 @@ describe('API Integration Tests (Mocked DB)', () => {
 
       const response = await request(app)
         .post('/api/v1/urls')
-        .send({ originalUrl: 'https://example.com/alias-target', customAlias: 'takenAlias' });
+        .send({
+          originalUrl: 'https://example.com/alias-target',
+          customAlias: 'takenAlias',
+        });
 
       expect(response.status).toBe(409);
       expect(response.body).toEqual({
@@ -140,7 +151,15 @@ describe('API Integration Tests (Mocked DB)', () => {
     });
 
     it('should return 400 Bad Request for invalid customAlias formats', async () => {
-      const invalidAliases = ['ab', 'abc-123', 'abc_123', 'abc 123', 'abc/123', 'abc@123'];
+      const invalidAliases = [
+        'ab',
+        'abc-123',
+        'abc_123',
+        'abc 123',
+        'abc/123',
+        'abc@123',
+        'a'.repeat(51),
+      ];
 
       for (const customAlias of invalidAliases) {
         const response = await request(app)
@@ -171,8 +190,12 @@ describe('API Integration Tests (Mocked DB)', () => {
 
       expect(response.status).toBe(302);
       expect(response.headers['x-request-id']).toBeDefined();
-      expect(response.headers.location).toBe('https://example.com/redirect-target');
-      expect(response.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
+      expect(response.headers.location).toBe(
+        'https://example.com/redirect-target'
+      );
+      expect(response.headers['cache-control']).toBe(
+        'no-cache, no-store, must-revalidate'
+      );
     });
 
     it('should return 404 Not Found when short code does not exist', async () => {
@@ -197,6 +220,28 @@ describe('API Integration Tests (Mocked DB)', () => {
       expect(response.headers['x-request-id']).toBeDefined();
       expect(response.body).toHaveProperty('success', false);
       expect(response.body).toHaveProperty('message', 'Validation failed');
+    });
+
+    it('should redirect using a custom alias longer than 8 characters', async () => {
+      const customAlias = 'a'.repeat(50);
+
+      const mockRow: UrlRow = {
+        id: 'uuid-long-alias',
+        short_code: customAlias,
+        original_url: 'https://example.com/redirect-target',
+        created_at: new Date('2026-01-01T00:00:00.000Z'),
+      };
+
+      vi.spyOn(pool, 'query').mockImplementationOnce(
+        async () => ({ rows: [mockRow] }) as unknown as QueryResult<UrlRow>
+      );
+
+      const response = await request(app).get(`/api/v1/urls/${customAlias}`);
+
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(
+        'https://example.com/redirect-target'
+      );
     });
   });
 });

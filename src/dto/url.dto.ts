@@ -4,4 +4,3 @@ export interface UrlDto {
   originalUrl: string;
   createdAt: Date;
 }
-

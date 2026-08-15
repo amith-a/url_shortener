@@ -17,13 +17,8 @@ export class UrlController {
     res.status(201).json(url);
   }
 
-  async redirect(
-    req: Request<GetUrlRequestDto>,
-    res: Response,
-  ): Promise<void> {
-    const url = await this.service.resolveShortCode(
-      req.params.shortCode,
-    );
+  async redirect(req: Request<GetUrlRequestDto>, res: Response): Promise<void> {
+    const url = await this.service.resolveShortCode(req.params.shortCode);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.redirect(302, url);
