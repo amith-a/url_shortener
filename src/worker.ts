@@ -4,6 +4,7 @@ import {
   setupUrlCleanupSchedule,
 } from './jobs/url-cleanup.queue';
 import { createUrlCleanupWorker } from './jobs/url-cleanup.worker';
+import pool from './config/database';
 import { connectWithRetry } from './config/database-connection';
 import { logger } from './config/logger';
 import { env } from './config/env';
@@ -17,11 +18,16 @@ export async function startWorker() {
   const worker = createUrlCleanupWorker(cleanupService);
 
   const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'Closing background worker and queue...');
+    logger.info(
+      { signal },
+      'Closing background worker, queue, and database pool...'
+    );
     try {
       await worker.close();
       await queue.close();
       logger.info('Background worker and queue closed successfully');
+      await pool.end();
+      logger.info('Database pool drained successfully');
     } catch (err) {
       logger.error({ err }, 'Error during worker shutdown');
     }
