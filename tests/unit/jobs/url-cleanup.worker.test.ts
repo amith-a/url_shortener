@@ -59,4 +59,22 @@ describe('createUrlCleanupWorker', () => {
     expect(mockCleanupService.cleanupExpiredUrls).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ deletedCount: 3 });
   });
+
+  it('should propagate cleanup errors so BullMQ marks the job as failed', async () => {
+    const cleanupError = new Error('Database failure');
+
+    const mockCleanupService = {
+      cleanupExpiredUrls: vi.fn().mockRejectedValue(cleanupError),
+    } as unknown as UrlCleanupService;
+
+    createUrlCleanupWorker(mockCleanupService);
+
+    const instance = mockWorkerInstances.at(-1)!;
+
+    const mockJob = { id: 'job-2', name: 'cleanup' } as Job;
+
+    await expect(instance.processor(mockJob)).rejects.toThrow(
+      'Database failure'
+    );
+  });
 });
