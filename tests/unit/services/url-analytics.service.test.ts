@@ -17,6 +17,7 @@ describe('UrlAnalyticsService Unit Tests', () => {
     findByIdAndUserId: vi.fn(),
     listByUserId: vi.fn(),
     countByUserId: vi.fn(),
+    deleteExpiredUrls: vi.fn(),
   };
 
   const analyticsService = new UrlAnalyticsService(
