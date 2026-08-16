@@ -16,7 +16,13 @@ export function createRateLimiter(
   const windowSeconds = options.windowSeconds ?? env.RATE_LIMIT_WINDOW_SECONDS;
 
   return async (req, res, next): Promise<void> => {
-    const identity = req.user?.id ?? (req.ip as string);
+    const identity = req.user?.id ?? req.ip;
+
+    if (!identity) {
+      next();
+      return;
+    }
+
     const key = service.buildKey(options.scope, identity);
 
     const result = await service.check(key, limit, windowSeconds);

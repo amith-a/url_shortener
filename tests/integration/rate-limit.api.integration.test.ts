@@ -5,6 +5,26 @@ import pool from '../../src/config/database';
 import { redis } from '../../src/config/redis';
 import { cacheService } from '../../src/bootstrap/url.bootstrap';
 
+async function scanKeys(pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+    const [nextCursor, scannedKeys] = await redis.scan(
+      cursor,
+      'MATCH',
+      pattern,
+      'COUNT',
+      100
+    );
+
+    cursor = nextCursor;
+    keys.push(...scannedKeys);
+  } while (cursor !== '0');
+
+  return keys;
+}
+
 async function safeCleanupDbAndRedis() {
   const { rows } = await pool.query('SELECT current_database()');
   const activeDb = rows[0]?.current_database;
@@ -19,7 +39,7 @@ async function safeCleanupDbAndRedis() {
     'TRUNCATE TABLE urls, "session", "account", "user", "verification" RESTART IDENTITY CASCADE'
   );
 
-  const rateLimitKeys = await redis.keys('ratelimit:*');
+  const rateLimitKeys = await scanKeys('ratelimit:*');
   if (rateLimitKeys.length > 0) {
     await redis.del(...rateLimitKeys);
   }
@@ -152,7 +172,7 @@ describe('Rate Limiting Integration Tests (Real Redis & Real DB)', () => {
       expect(firstRes.status).toBe(302);
 
       // Pre-fill public rate limit key for whatever IP Supertest used
-      const keys = await redis.keys('ratelimit:resolve-url:*');
+      const keys = await scanKeys('ratelimit:resolve-url:*');
       for (const k of keys) {
         await redis.set(k, '100', 'EX', 60);
       }
@@ -182,8 +202,8 @@ describe('Rate Limiting Integration Tests (Real Redis & Real DB)', () => {
       // Resolve once to cache in Redis
       await request(app).get(`/api/v1/urls/${shortCode}`);
 
-      const rateLimitKeys = await redis.keys('ratelimit:*');
-      const urlCacheKeys = await redis.keys('url:*');
+      const rateLimitKeys = await scanKeys('ratelimit:*');
+      const urlCacheKeys = await scanKeys('url:*');
 
       expect(rateLimitKeys.length).toBeGreaterThan(0);
       expect(urlCacheKeys).toContain(`url:${shortCode}`);
