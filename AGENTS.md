@@ -479,13 +479,13 @@ pass.
 Run:
 
 ```bash
-npm run test:unit
-npm run test:integration
-npm test
+npm run format
 npm run lint
 npm run typecheck
+npm run test:unit
+npm run test:integration
 npm run build
-npm run format
+npm test
 ```
 
 Fix lint errors before finishing.

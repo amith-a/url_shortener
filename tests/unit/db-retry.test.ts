@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
-import { connectWithRetry } from '../../src/server';
+import { connectWithRetry } from '../../src/config/database-connection';
 import { logger } from '../../src/config/logger';
 
 describe('connectWithRetry', () => {

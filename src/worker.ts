@@ -4,7 +4,7 @@ import {
   setupUrlCleanupSchedule,
 } from './jobs/url-cleanup.queue';
 import { createUrlCleanupWorker } from './jobs/url-cleanup.worker';
-import { connectWithRetry } from './server';
+import { connectWithRetry } from './config/database-connection';
 import { logger } from './config/logger';
 
 export async function startWorker() {
