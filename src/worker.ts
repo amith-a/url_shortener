@@ -6,6 +6,7 @@ import {
 import { createUrlCleanupWorker } from './jobs/url-cleanup.worker';
 import { connectWithRetry } from './config/database-connection';
 import { logger } from './config/logger';
+import { env } from './config/env';
 
 export async function startWorker() {
   logger.info('Initializing background worker service...');
@@ -29,7 +30,7 @@ export async function startWorker() {
   return { queue, worker, shutdown };
 }
 
-if (process.env.NODE_ENV !== 'test' && process.argv[1]?.endsWith('worker.ts')) {
+if (env.NODE_ENV !== 'test' && process.argv[1]?.includes('worker')) {
   (async () => {
     await connectWithRetry();
     const { shutdown } = await startWorker();
