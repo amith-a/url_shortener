@@ -243,6 +243,9 @@ describe('UrlRepository', () => {
         expect.stringContaining('DELETE FROM urls')
       );
       expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('expires_at IS NOT NULL')
+      );
+      expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining('expires_at <= NOW()')
       );
       expect(result).toEqual(['exp1', 'exp2']);
