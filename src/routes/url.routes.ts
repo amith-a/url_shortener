@@ -2,7 +2,11 @@ import { Router } from 'express';
 
 import { controller } from '../bootstrap/url.bootstrap';
 import { validate } from '../middleware/validate.middleware';
-import { getUrlSchema, listUrlsQuerySchema, urlSchema } from '../validators/url.validator';
+import {
+  getUrlSchema,
+  listUrlsQuerySchema,
+  urlSchema,
+} from '../validators/url.validator';
 import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();

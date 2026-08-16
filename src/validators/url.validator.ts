@@ -51,8 +51,14 @@ export const urlSchema = z.object({
     .optional(),
   expiresAt: z
     .string()
-    .datetime({ offset: true, message: 'Invalid ISO 8601 date format with timezone offset' })
-    .refine((val) => new Date(val) > new Date(), 'Expiration time must be in the future')
+    .datetime({
+      offset: true,
+      message: 'Invalid ISO 8601 date format with timezone offset',
+    })
+    .refine(
+      (val) => new Date(val) > new Date(),
+      'Expiration time must be in the future'
+    )
     .optional(),
 });
 
@@ -72,4 +78,3 @@ export const listUrlsQuerySchema = z.object({
 
 export type CreateShortUrlRequest = z.infer<typeof urlSchema>;
 export type GetUrlRequest = z.infer<typeof getUrlSchema>;
-

@@ -55,7 +55,10 @@ export class UrlCacheService {
     const key = this.buildKey(shortCode);
     try {
       await this.client.del(key);
-      logger.debug({ shortCode, key }, 'Invalidated Redis cache key successfully');
+      logger.debug(
+        { shortCode, key },
+        'Invalidated Redis cache key successfully'
+      );
     } catch (err) {
       logger.error(
         { err, shortCode, key },

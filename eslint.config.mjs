@@ -1,25 +1,29 @@
 // @ts-check
 
-import js from '@eslint/js'
-import eslintConfigPrettier from 'eslint-config-prettier'
-import { defineConfig } from 'eslint/config'
-import tseslint from 'typescript-eslint'
+import js from '@eslint/js';
+import eslintConfigPrettier from 'eslint-config-prettier';
+import { defineConfig } from 'eslint/config';
+import tseslint from 'typescript-eslint';
 
-export default defineConfig({
-  files: ['src/**/*.{js,ts}'],
-  extends: [
-    js.configs.recommended,
-    tseslint.configs.recommended,
-    eslintConfigPrettier,
-  ],
-  rules: {
-    "no-console": "warn",
-    "@typescript-eslint/no-unused-vars": [
-      "error",
-      {
-        argsIgnorePattern: "^_",
-      },
-    ],
+export default defineConfig(
+  {
+    ignores: ['dist', 'node_modules', 'coverage'],
   },
-  ignores: ['dist', 'node_modules', 'coverage'],
-})
+  {
+    files: ['src/**/*.{js,ts}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      eslintConfigPrettier,
+    ],
+    rules: {
+      'no-console': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+        },
+      ],
+    },
+  }
+);

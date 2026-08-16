@@ -113,7 +113,10 @@ export class UrlService {
   }
 
   async deleteUrl(id: string, userId: string): Promise<void> {
-    const deletedShortCode = await this.repository.deleteByIdAndUserId(id, userId);
+    const deletedShortCode = await this.repository.deleteByIdAndUserId(
+      id,
+      userId
+    );
 
     if (!deletedShortCode) {
       logger.warn(
@@ -163,7 +166,10 @@ export class UrlService {
   async resolveShortCode(shortCode: string): Promise<string> {
     const cachedUrl = await this.cacheService.get(shortCode);
     if (cachedUrl) {
-      logger.debug({ shortCode }, 'Short code resolved from cache successfully');
+      logger.debug(
+        { shortCode },
+        'Short code resolved from cache successfully'
+      );
       return cachedUrl;
     }
 
@@ -177,7 +183,10 @@ export class UrlService {
       throw new NotFoundError('Short URL not found');
     }
 
-    if (response.expiresAt !== null && response.expiresAt.getTime() <= Date.now()) {
+    if (
+      response.expiresAt !== null &&
+      response.expiresAt.getTime() <= Date.now()
+    ) {
       logger.warn(
         { shortCode, expiresAt: response.expiresAt },
         'Short code resolution failed: URL has expired'
@@ -195,7 +204,11 @@ export class UrlService {
     }
 
     if (effectiveTtl > 0) {
-      await this.cacheService.set(shortCode, response.originalUrl, effectiveTtl);
+      await this.cacheService.set(
+        shortCode,
+        response.originalUrl,
+        effectiveTtl
+      );
     }
 
     logger.debug({ shortCode }, 'Short code resolved successfully');

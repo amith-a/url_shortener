@@ -484,6 +484,7 @@ npm run test:integration
 npm test
 npm run lint
 npm run build
+npm run format
 ```
 
 Fix lint errors before finishing.
