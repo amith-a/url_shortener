@@ -1,7 +1,8 @@
 import { Router } from 'express';
 
-import { controller } from '../bootstrap/url.bootstrap';
+import { controller, rateLimitService } from '../bootstrap/url.bootstrap';
 import { validate } from '../middleware/validate.middleware';
+import { createRateLimiter } from '../middleware/rate-limit.middleware';
 import {
   getUrlSchema,
   listUrlsQuerySchema,
@@ -14,6 +15,7 @@ const router = Router();
 router.post(
   '/',
   requireAuth,
+  createRateLimiter(rateLimitService, { scope: 'create-url' }),
   validate({
     body: urlSchema,
   }),
@@ -31,6 +33,7 @@ router.get(
 
 router.get(
   '/:shortCode',
+  createRateLimiter(rateLimitService, { scope: 'resolve-url' }),
   validate({
     params: getUrlSchema,
   }),

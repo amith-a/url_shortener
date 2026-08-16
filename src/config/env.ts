@@ -26,6 +26,9 @@ const envSchema = z.object({
 
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
   REDIS_URL_TTL: z.coerce.number().int().positive().default(3600),
+
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
 });
 
 export const env = envSchema.parse(process.env);

@@ -550,7 +550,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-16, after Redis caching implementation._
+_Last updated: 2026-08-16, after Redis rate limiting implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -823,17 +823,22 @@ Key details:
 
 ## Rate Limiting
 
-Not implemented yet.
+Implemented atomic, Redis-backed rate limiting.
 
-Planned technology:
-
-```text
-Redis
-```
-
-Rate limits should be introduced after Redis caching is established.
-
-Do not hard-code final rate limits before requirements are defined.
+Key details:
+- **Algorithm**: Atomic Redis Lua script (`INCR` + conditional `EXPIRE` on count 1, returning `{ count, ttl }`).
+- **Configuration**: Environment-driven defaults via `RATE_LIMIT_MAX` (default `100`) and `RATE_LIMIT_WINDOW_SECONDS` (default `60`), validated in `src/config/env.ts`.
+- **Failure Policy**: Fail-open behavior. If Redis command execution or connection fails, the error is logged and the request proceeds (`next()`) without crashing or returning 429.
+- **Key Design**: `ratelimit:{scope}:{identity}` (isolated from `url:*` cache keys).
+- **Identity**: Uses `req.user.id` for authenticated endpoints and `req.ip` for public unauthenticated endpoints.
+- **Enabled Routes**:
+  - `POST /api/v1/urls` (scope: `create-url`)
+  - `GET /api/v1/urls/:shortCode` (scope: `resolve-url`)
+- **Headers**:
+  - `X-RateLimit-Limit`: Maximum requests allowed in current window
+  - `X-RateLimit-Remaining`: Remaining request quota in current window
+  - `X-RateLimit-Reset`: Time remaining in seconds until reset
+  - `Retry-After`: Time in seconds to wait before retrying (sent on `429 Too Many Requests`)
 
 ---
 
@@ -894,18 +899,17 @@ Only add hardening that has a concrete purpose.
 
 ## Docker
 
-Docker Compose is already used for local PostgreSQL development.
+Docker Compose is used for local PostgreSQL and Redis development.
 
-The future local environment is expected to include:
+The current local environment includes:
 
 ```text
 Docker Compose
-├── API
 ├── PostgreSQL
 └── Redis
 ```
 
-Redis will be added when the caching/rate-limiting phase begins.
+Redis is provided by `redis:7-alpine` and is exposed on port 6379.
 
 ---
 
@@ -998,7 +1002,15 @@ Current roadmap:
    - Added Docker Compose `redis:7-alpine` service on port 6379
    - Added unit tests (`url-cache.service.test.ts`, `url.service.test.ts`) and real Redis integration tests (`url.api.integration.test.ts`)
 
-9. Rate limiting
+9. ~~Rate limiting~~
+   Done:
+   - Implemented atomic Lua-script Redis rate limiter service (`RateLimitService`)
+   - Implemented Express rate limiter middleware (`createRateLimiter`) with fail-open Redis error policy
+   - Added environment configuration `RATE_LIMIT_MAX` (default 100) and `RATE_LIMIT_WINDOW_SECONDS` (default 60)
+   - Key format `ratelimit:{scope}:{identity}` (uses `req.user.id` for auth routes, `req.ip` for public routes)
+   - Attached rate limiting middleware to `POST /api/v1/urls` and `GET /api/v1/urls/:shortCode`
+   - Added headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` on HTTP 429
+   - Added unit tests (`rate-limit.service.test.ts`, `rate-limit.middleware.test.ts`) and real Redis integration tests (`rate-limit.api.integration.test.ts`)
 
 10. Analytics
 
@@ -1018,7 +1030,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Rate limiting
+Analytics
 ```
 
 ---

@@ -1,3 +1,4 @@
+import '../../../src/types/express.d.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../../../src/middleware/auth.middleware';
