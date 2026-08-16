@@ -135,15 +135,14 @@ describe('rateLimitMiddleware', () => {
   });
 
   it('should call next() without rate limiting if identity is unavailable', async () => {
-    delete mockReq.ip;
-    delete mockReq.user;
+    const emptyReq: Partial<Request> = {};
 
     const middleware = createRateLimiter(
       mockService as unknown as RateLimitService,
       { scope: 'no-id-scope' }
     );
 
-    await middleware(mockReq as Request, mockRes as Response, nextFn);
+    await middleware(emptyReq as Request, mockRes as Response, nextFn);
 
     expect(mockService.check).not.toHaveBeenCalled();
     expect(nextFn).toHaveBeenCalled();
