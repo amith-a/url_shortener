@@ -3,18 +3,24 @@ import type { ColumnDefinitions, MigrationBuilder } from 'node-pg-migrate';
 export const shorthands: ColumnDefinitions | undefined = undefined;
 
 export async function up(pgm: MigrationBuilder): Promise<void> {
-  pgm.sql(`
-    CREATE TABLE url_click_events (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      url_id UUID NOT NULL,
-      clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-      CONSTRAINT fk_url_click_events_url
-        FOREIGN KEY (url_id)
-        REFERENCES urls(id)
-        ON DELETE CASCADE
-    );
-  `);
+  pgm.createTable('url_click_events', {
+    id: {
+      type: 'uuid',
+      primaryKey: true,
+      default: pgm.func('gen_random_uuid()'),
+    },
+    url_id: {
+      type: 'uuid',
+      notNull: true,
+      references: 'urls',
+      onDelete: 'CASCADE',
+    },
+    clicked_at: {
+      type: 'timestamptz',
+      notNull: true,
+      default: pgm.func('CURRENT_TIMESTAMP'),
+    },
+  });
 
   pgm.createIndex(
     'url_click_events',
