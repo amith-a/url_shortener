@@ -884,7 +884,7 @@ Key details:
 - **Cascade Deletion**: Click events in `url_click_events` are automatically cleaned up via database `ON DELETE CASCADE`.
 - **Repeatable Schedule**: Configurable via `URL_CLEANUP_INTERVAL_SECONDS` (default `3600` seconds / 1 hour), registered deterministically via `upsertJobScheduler` on background worker startup.
 - **Fail-Safe Operation**: Redis cache invalidation failures do not undo PostgreSQL deletions. Background job failures are logged and managed by BullMQ.
-- **Isolation**: Dedicated background worker entry point [`src/worker.ts`](file:///d:/code/url_shortner_exp/src/worker.ts) and HTTP server integration ([`src/server.ts`](file:///d:/code/url_shortner_exp/src/server.ts)) with graceful shutdown.
+- **Isolation**: Dedicated background worker entry point [`src/worker.ts`](file:///d:/code/url_shortner_exp/src/worker.ts) runs as a separate process from the HTTP server ([`src/server.ts`](file:///d:/code/url_shortner_exp/src/server.ts)) with graceful worker shutdown.
 - **Testing**: Unit test coverage ([`url-cleanup.service.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/services/url-cleanup.service.test.ts), [`url-cleanup.worker.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/jobs/url-cleanup.worker.test.ts), [`url-cleanup.queue.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/jobs/url-cleanup.queue.test.ts), [`url.repository.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/repositories/url.repository.test.ts)) and real PostgreSQL/Redis integration test coverage ([`tests/integration/url-cleanup.integration.test.ts`](file:///d:/code/url_shortner_exp/tests/integration/url-cleanup.integration.test.ts)).
 
 ---
