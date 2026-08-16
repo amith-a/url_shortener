@@ -1,8 +1,77 @@
+import type { Server } from 'node:http';
 import app from './app';
 import pool from './config/database';
 import { connectWithRetry } from './config/database-connection';
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { redis } from './config/redis';
+
+let isShuttingDown = false;
+
+export function resetShutdownStateForTesting(): void {
+  isShuttingDown = false;
+}
+
+export async function gracefulShutdown(
+  server: Server,
+  signal: string,
+  shutdownTimeoutMs: number = env.SHUTDOWN_TIMEOUT_MS
+): Promise<void> {
+  if (isShuttingDown) {
+    logger.warn(
+      { signal },
+      'Shutdown already in progress, ignoring duplicate signal'
+    );
+    return;
+  }
+  isShuttingDown = true;
+
+  logger.info(
+    { signal },
+    `${signal} signal received: starting graceful shutdown`
+  );
+
+  const forceShutdownTimer = setTimeout(() => {
+    logger.warn(
+      { shutdownTimeoutMs },
+      'Shutdown timeout reached, destroying remaining open HTTP connections'
+    );
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();
+    }
+  }, shutdownTimeoutMs);
+
+  await new Promise<void>((resolve) => {
+    server.close((err) => {
+      clearTimeout(forceShutdownTimer);
+      if (err) {
+        logger.error({ err }, 'Error closing HTTP server');
+      } else {
+        logger.info('HTTP server closed cleanly');
+      }
+      resolve();
+    });
+  });
+
+  try {
+    await pool.end();
+    logger.info('PostgreSQL pool drained cleanly');
+  } catch (err) {
+    logger.error({ err }, 'Error draining PostgreSQL pool');
+  }
+
+  try {
+    await redis.quit();
+    logger.info('Redis connection closed cleanly');
+  } catch (err) {
+    logger.error({ err }, 'Error closing Redis connection');
+  }
+
+  logger.info('Graceful shutdown completed');
+  if (env.NODE_ENV !== 'test') {
+    process.exit(0);
+  }
+}
 
 async function bootstrap() {
   await connectWithRetry();
@@ -11,25 +80,10 @@ async function bootstrap() {
     logger.info(`Server running on port ${env.PORT}`);
   });
 
-  const shutdown = (signal: string) => {
-    logger.info(`${signal} signal received: closing HTTP server`);
-    server.close(async () => {
-      logger.info('HTTP server closed');
-      try {
-        await pool.end();
-        logger.info('Database pool drained');
-        process.exit(0);
-      } catch (err) {
-        logger.error(err, 'Error during database pool shutdown');
-        process.exit(1);
-      }
-    });
-  };
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => void gracefulShutdown(server, 'SIGTERM'));
+  process.on('SIGINT', () => void gracefulShutdown(server, 'SIGINT'));
 }
 
-if (process.env.NODE_ENV !== 'test') {
+if (env.NODE_ENV !== 'test') {
   bootstrap();
 }

@@ -3,15 +3,26 @@ import pinoHttp from 'pino-http';
 
 import { logger } from '../config/logger';
 
+const REQUEST_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
 export const httpLogger = pinoHttp({
   logger,
   redact: ['req.headers.authorization', 'req.headers.cookie'],
 
   genReqId(req, res) {
-    const requestId = req.headers['x-request-id']?.toString() ?? randomUUID();
+    const existingId = (req as unknown as { id?: string }).id;
+    if (existingId && REQUEST_ID_REGEX.test(existingId)) {
+      res.setHeader('X-Request-ID', existingId);
+      return existingId;
+    }
 
-    res.setHeader('X-Request-Id', requestId);
+    const headerValue = req.headers['x-request-id'];
+    const requestId =
+      typeof headerValue === 'string' && REQUEST_ID_REGEX.test(headerValue)
+        ? headerValue
+        : randomUUID();
 
+    res.setHeader('X-Request-ID', requestId);
     return requestId;
   },
 });

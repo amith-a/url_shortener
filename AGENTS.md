@@ -551,7 +551,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-16, after Background Jobs / Expired URL Cleanup implementation._
+_Last updated: 2026-08-16, after Production Hardening implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -612,6 +612,18 @@ GET /api/v1/urls/:id/analytics
 ```
 
 Returns total click count for a short URL owned by the authenticated user (requires authentication; returns 404 Not Found for non-owners/non-existent).
+
+```text
+GET /health
+```
+
+Returns 200 OK `{ "status": "ok" }` for process liveness check (public).
+
+```text
+GET /ready
+```
+
+Returns 200 OK `{ "status": "ready" }` when PostgreSQL and Redis dependencies are healthy, or 503 Service Unavailable `{ "status": "not_ready" }` if unavailable (public).
 
 ---
 
@@ -891,21 +903,19 @@ Key details:
 
 ## Production Hardening
 
-Not implemented as a complete phase yet.
+Implemented production readiness and operational safeguards:
 
-Planned areas:
-
-- Structured logging
-- Request IDs
-- Health endpoint
-- Readiness endpoint
-- Graceful shutdown
-- Request timeouts
-- Explicit CORS configuration
-- Security headers
-- Configuration validation
-
-Only add hardening that has a concrete purpose.
+- **Centralized Configuration Validation**: Extended `src/config/env.ts` to validate `CORS_ALLOWED_ORIGINS`, `REQUEST_TIMEOUT_MS` (default 10s), and `SHUTDOWN_TIMEOUT_MS` (default 10s). Replaced all direct `process.env` reads across application code.
+- **Liveness Endpoint (`GET /health`)**: Lightweight process health check returning `200 OK` `{ "status": "ok" }`. Unauthenticated, un-rate-limited, no database or Redis queries.
+- **Readiness Endpoint (`GET /ready`)**: `HealthService` checks PostgreSQL pool query (`SELECT 1`) and Redis client ping (`redis.ping()`) reusing existing connection pools. Returns `200 OK` `{ "status": "ready" }` when healthy or `503 Service Unavailable` `{ "status": "not_ready" }` on dependency failure. Unauthenticated, un-rate-limited.
+- **Health Architecture**: `HealthService` → `HealthController` → `health.bootstrap.ts` → `health.routes.ts` mounted in `src/app.ts`. Controllers remain HTTP-only without direct database/Redis access.
+- **Validated Request IDs**: `requestIdMiddleware` extracts incoming `X-Request-ID` header and validates against `/^[a-zA-Z0-9_-]{1,64}$/`. Missing or invalid IDs receive a generated `crypto.randomUUID()`. Attached to `req.id` and Pino logger context (`reqId`), and returned on `X-Request-ID` response header.
+- **Request Timeout Middleware**: `createTimeoutMiddleware` returns HTTP `503 Service Unavailable` `{ "error": "Request timeout" }` if request processing exceeds `env.REQUEST_TIMEOUT_MS`. Timers are safely cleared on response completion.
+- **Security Headers**: `helmet()` middleware mounted in `src/app.ts` providing `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.
+- **Explicit CORS**: `cors()` middleware configured with explicit allowed origins parsed from `env.CORS_ALLOWED_ORIGINS` (comma-separated origins). Production wildcard `*` is rejected by Zod schema validation. Configured with `credentials: true` compatible with Better Auth sessions.
+- **Graceful HTTP Server Shutdown**: `gracefulShutdown()` in `src/server.ts` handles `SIGTERM` and `SIGINT` with an atomic `isShuttingDown` guard. Sequence: stops accepting new connections via `server.close()`, waits for in-flight HTTP requests to drain (or bounded `env.SHUTDOWN_TIMEOUT_MS` fallback calling `server.closeAllConnections()`), drains PostgreSQL `pool.end()`, closes Redis `redis.quit()`, and exits cleanly.
+- **Worker Isolation**: Dedicated worker entry point `src/worker.ts` remains completely isolated as a separate process from `src/server.ts`.
+- **Test Coverage**: Unit test suites (`env.test.ts`, `health.service.test.ts`, `health.controller.test.ts`, `request-id.middleware.test.ts`, `timeout.middleware.test.ts`, `shutdown.test.ts`) and full integration test suite (`tests/integration/health.api.integration.test.ts`).
 
 ---
 
@@ -1044,7 +1054,17 @@ Current roadmap:
    - Added unit test suites (`url-cleanup.service.test.ts`, `url-cleanup.worker.test.ts`, `url-cleanup.queue.test.ts`, updated `url.repository.test.ts`)
    - Added real PostgreSQL & Redis integration test (`tests/integration/url-cleanup.integration.test.ts`)
 
-12. Production hardening
+12. ~~Production hardening~~
+   Done:
+   - Added centralized Zod validation for CORS_ALLOWED_ORIGINS, REQUEST_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS
+   - Added GET /health (liveness) and GET /ready (readiness checking PostgreSQL & Redis)
+   - Added HealthService, HealthController, health.bootstrap.ts, health.routes.ts
+   - Added Helmet security headers and explicit CORS with credential support
+   - Added X-Request-ID validation (max 64 chars, regex guard) with UUID fallback & Pino logging
+   - Added request timeout middleware (503 on timeout)
+   - Added graceful HTTP server shutdown with in-flight request draining & connection destruction fallback
+   - Preserved worker process isolation (src/worker.ts as separate process)
+   - Added unit and integration test suites
 
 13. Testing / retroactive coverage pass
 
@@ -1058,7 +1078,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Production hardening
+Testing / retroactive coverage pass
 ```
 
 ---

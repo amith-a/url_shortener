@@ -3,20 +3,42 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './config/auth';
+import { env } from './config/env';
 import { errorHandler } from './middleware/error.middleware';
-import urlRoutes from './routes/url.routes';
 import { httpLogger } from './middleware/http-logger.middleware';
+import { requestIdMiddleware } from './middleware/request-id.middleware';
+import { createTimeoutMiddleware } from './middleware/timeout.middleware';
+import healthRoutes from './routes/health.routes';
+import urlRoutes from './routes/url.routes';
 
 const app = express();
 
-app.use(cors());
+app.disable('x-powered-by');
+app.use(helmet());
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (env.CORS_ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.use(requestIdMiddleware);
+app.use(createTimeoutMiddleware());
+app.use(httpLogger);
+
+app.use('/', healthRoutes);
 
 app.all('/api/auth/{*path}', toNodeHandler(auth));
 
 app.use(express.json({ limit: '10kb' }));
-app.use(helmet());
-app.disable('x-powered-by');
-app.use(httpLogger);
 
 app.use('/api/v1/urls', urlRoutes);
 
