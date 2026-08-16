@@ -44,7 +44,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       });
 
       const result = await service.create(
@@ -69,7 +68,6 @@ describe('UrlService', () => {
         originalUrl: 'https://existing.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       };
 
       vi.mocked(repository.findByShortCode)
@@ -82,7 +80,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       });
 
       const result = await service.create(
@@ -109,7 +106,6 @@ describe('UrlService', () => {
           originalUrl: 'https://example.com',
           createdAt: new Date(),
           expiresAt: null,
-          userId: 'user-123',
         });
 
       const result = await service.create(
@@ -145,7 +141,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       });
 
       const result = await service.create(
@@ -220,7 +215,6 @@ describe('UrlService', () => {
           originalUrl: 'https://example.com/1',
           createdAt: new Date(),
           expiresAt: null,
-          userId: 'user-123',
         },
         {
           id: 'url-2',
@@ -228,7 +222,6 @@ describe('UrlService', () => {
           originalUrl: 'https://example.com/2',
           createdAt: new Date(),
           expiresAt: null,
-          userId: 'user-123',
         },
       ];
 
@@ -294,7 +287,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       });
       vi.mocked(analyticsService.recordClick).mockResolvedValueOnce(undefined);
       vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
@@ -321,7 +313,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: futureDate,
-        userId: 'user-123',
       });
       vi.mocked(analyticsService.recordClick).mockResolvedValueOnce(undefined);
       vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
@@ -346,7 +337,6 @@ describe('UrlService', () => {
         originalUrl: 'https://example.com',
         createdAt: new Date(),
         expiresAt: pastDate,
-        userId: 'user-123',
       });
       vi.mocked(cacheService.delete).mockResolvedValueOnce(undefined);
 
@@ -377,7 +367,6 @@ describe('UrlService', () => {
         originalUrl: 'https://fallback.com',
         createdAt: new Date(),
         expiresAt: null,
-        userId: 'user-123',
       });
       vi.mocked(analyticsService.recordClick).mockRejectedValueOnce(
         new Error('DB click failure')

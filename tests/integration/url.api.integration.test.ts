@@ -306,7 +306,9 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       expect(resA.body.pagination.total).toBe(2);
       expect(resA.body.data).toHaveLength(2);
       expect(
-        resA.body.data.every((url: { userId: string }) => url.userId === userA.user.id)
+        resA.body.data.every((url: { originalUrl: string }) =>
+          url.originalUrl.includes('user-a-url')
+        )
       ).toBe(true);
 
       const resB = await request(app)
@@ -316,7 +318,9 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       expect(resB.status).toBe(200);
       expect(resB.body.pagination.total).toBe(1);
       expect(resB.body.data).toHaveLength(1);
-      expect(resB.body.data[0].userId).toBe(userB.user.id);
+      expect(resB.body.data[0].originalUrl).toBe(
+        'https://example.com/user-b-url-1'
+      );
     });
 
     it('should return URLs ordered by created_at DESC, id DESC (newest first)', async () => {

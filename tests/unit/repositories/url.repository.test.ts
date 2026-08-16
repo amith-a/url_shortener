@@ -50,7 +50,6 @@ describe('UrlRepository', () => {
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
         expiresAt: mockRow.expires_at,
-        userId: mockRow.user_id,
       });
     });
 
@@ -108,7 +107,6 @@ describe('UrlRepository', () => {
         originalUrl: mockRow.original_url,
         createdAt: mockRow.created_at,
         expiresAt: mockRow.expires_at,
-        userId: mockRow.user_id,
       });
     });
 
@@ -199,7 +197,7 @@ describe('UrlRepository', () => {
         ['user-123', 20, 0]
       );
       expect(result).toHaveLength(1);
-      expect(result[0]?.userId).toBe('user-123');
+      expect(result[0]?.shortCode).toBe('abc12345');
     });
   });
 

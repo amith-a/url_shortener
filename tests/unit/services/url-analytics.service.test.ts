@@ -43,7 +43,6 @@ describe('UrlAnalyticsService Unit Tests', () => {
       originalUrl: 'https://example.com',
       createdAt: new Date(),
       expiresAt: null,
-      userId: 'user-1',
     };
 
     vi.mocked(mockUrlRepo.findByIdAndUserId).mockResolvedValue(mockUrl);

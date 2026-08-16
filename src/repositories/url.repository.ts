@@ -159,7 +159,6 @@ export class UrlRepository implements IUrlRepository {
       originalUrl: row.original_url,
       createdAt: row.created_at,
       expiresAt: row.expires_at,
-      userId: row.user_id,
     };
   }
 }
