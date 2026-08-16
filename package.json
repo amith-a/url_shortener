@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "better-auth": "^1.6.29",
+    "bullmq": "^6.1.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

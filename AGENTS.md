@@ -550,7 +550,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-16, after URL Analytics implementation._
+_Last updated: 2026-08-16, after Background Jobs / Expired URL Cleanup implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -874,18 +874,17 @@ Key details:
 
 ## Background Jobs
 
-Not implemented yet.
+Implemented asynchronous expired URL cleanup using **BullMQ + Redis**.
 
-Planned use cases may include:
-
-- Analytics processing
-- Expired URL cleanup
-- Other asynchronous work if justified
-
-For the Express implementation, BullMQ + Redis may be considered when a real
-background-processing requirement exists.
-
-Do not introduce queues without an actual asynchronous workload.
+Key details:
+- **Queue & Worker**: Queue `url-cleanup` and worker defined using BullMQ (v6) connected to shared Redis configuration (`bullRedisConnection`).
+- **Cleanup Service**: `UrlCleanupService` calls `urlRepository.deleteExpiredUrls()`, receives deleted short codes, invalidates corresponding Redis cache entries (`url:{shortCode}`), and logs operation metrics via Pino.
+- **Repository Execution**: Atomic PostgreSQL query `DELETE FROM urls WHERE expires_at IS NOT NULL AND expires_at <= NOW() RETURNING short_code`.
+- **Cascade Deletion**: Click events in `url_click_events` are automatically cleaned up via database `ON DELETE CASCADE`.
+- **Repeatable Schedule**: Configurable via `URL_CLEANUP_INTERVAL_SECONDS` (default `3600` seconds / 1 hour), registered deterministically via `upsertJobScheduler` on background worker startup.
+- **Fail-Safe Operation**: Redis cache invalidation failures do not undo PostgreSQL deletions. Background job failures are logged and managed by BullMQ.
+- **Isolation**: Dedicated background worker entry point [`src/worker.ts`](file:///d:/code/url_shortner_exp/src/worker.ts) and HTTP server integration ([`src/server.ts`](file:///d:/code/url_shortner_exp/src/server.ts)) with graceful shutdown.
+- **Testing**: Unit test coverage ([`url-cleanup.service.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/services/url-cleanup.service.test.ts), [`url-cleanup.worker.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/jobs/url-cleanup.worker.test.ts), [`url-cleanup.queue.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/jobs/url-cleanup.queue.test.ts), [`url.repository.test.ts`](file:///d:/code/url_shortner_exp/tests/unit/repositories/url.repository.test.ts)) and real PostgreSQL/Redis integration test coverage ([`tests/integration/url-cleanup.integration.test.ts`](file:///d:/code/url_shortner_exp/tests/integration/url-cleanup.integration.test.ts)).
 
 ---
 
@@ -1034,7 +1033,15 @@ Current roadmap:
    - Added unit tests (`url-analytics.service.test.ts`, `url-analytics.repository.test.ts`, updated `url.service.test.ts` & `url-cache.service.test.ts`)
    - Added integration test coverage in `tests/integration/url.api.integration.test.ts`
 
-11. Background jobs
+11. ~~Background jobs~~
+   Done:
+   - Installed BullMQ (v6) reusing Redis host/port configuration via `bullRedisConnection`
+   - Added `deleteExpiredUrls()` method to `IUrlRepository` and `UrlRepository` returning deleted short codes
+   - Added `UrlCleanupService` for periodic expired URL removal and Redis cache invalidation
+   - Implemented BullMQ `url-cleanup` queue, worker, and deterministic `upsertJobScheduler` (configurable via `URL_CLEANUP_INTERVAL_SECONDS`, default `3600`)
+   - Added background worker entry point `src/worker.ts` and HTTP server startup/shutdown integration in `src/server.ts`
+   - Added unit test suites (`url-cleanup.service.test.ts`, `url-cleanup.worker.test.ts`, `url-cleanup.queue.test.ts`, updated `url.repository.test.ts`)
+   - Added real PostgreSQL & Redis integration test (`tests/integration/url-cleanup.integration.test.ts`)
 
 12. Production hardening
 

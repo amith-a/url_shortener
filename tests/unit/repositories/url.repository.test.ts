@@ -223,4 +223,46 @@ describe('UrlRepository', () => {
       expect(count).toBe(42);
     });
   });
+
+  describe('deleteExpiredUrls', () => {
+    it('should execute DELETE query for expired URLs and return array of deleted short codes', async () => {
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [{ short_code: 'exp1' }, { short_code: 'exp2' }],
+            command: 'DELETE',
+            rowCount: 2,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<{ short_code: string }>
+      );
+
+      const result = await repository.deleteExpiredUrls();
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM urls')
+      );
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('expires_at <= NOW()')
+      );
+      expect(result).toEqual(['exp1', 'exp2']);
+    });
+
+    it('should return empty array when no expired URLs are found', async () => {
+      vi.spyOn(pool, 'query').mockImplementation(
+        async () =>
+          ({
+            rows: [],
+            command: 'DELETE',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+          }) as unknown as QueryResult<{ short_code: string }>
+      );
+
+      const result = await repository.deleteExpiredUrls();
+
+      expect(result).toEqual([]);
+    });
+  });
 });

@@ -12,4 +12,5 @@ export interface IUrlRepository {
     offset: number
   ): Promise<UrlDto[]>;
   countByUserId(userId: string): Promise<number>;
+  deleteExpiredUrls(): Promise<string[]>;
 }

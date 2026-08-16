@@ -5,6 +5,7 @@ import { UrlAnalyticsRepository } from '../repositories/url-analytics.repository
 import { UrlService } from '../services/url.service';
 import { UrlAnalyticsService } from '../services/url-analytics.service';
 import { UrlCacheService } from '../services/url-cache.service';
+import { UrlCleanupService } from '../services/url-cleanup.service';
 import { RateLimitService } from '../services/rate-limit.service';
 import { redis } from '../config/redis';
 
@@ -16,8 +17,16 @@ const analyticsService = new UrlAnalyticsService(
   analyticsRepository,
   repository
 );
+const cleanupService = new UrlCleanupService(repository, cacheService);
 const service = new UrlService(repository, cacheService, analyticsService);
 const controller = new UrlController(service);
 const analyticsController = new UrlAnalyticsController(analyticsService);
 
-export { controller, analyticsController, cacheService, rateLimitService };
+export {
+  controller,
+  analyticsController,
+  cacheService,
+  rateLimitService,
+  cleanupService,
+  repository,
+};

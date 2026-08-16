@@ -29,6 +29,12 @@ const envSchema = z.object({
 
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+
+  URL_CLEANUP_INTERVAL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600),
 });
 
 export const env = envSchema.parse(process.env);

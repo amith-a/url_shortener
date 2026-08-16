@@ -2,6 +2,7 @@ import app from './app';
 import pool from './config/database';
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { startWorker } from './worker';
 
 const MAX_ATTEMPTS = 5;
 const INITIAL_DELAY_MS = 1000;
@@ -40,15 +41,20 @@ export async function connectWithRetry(
 async function bootstrap() {
   await connectWithRetry();
 
+  const workerInstance = await startWorker();
+
   const server = app.listen(env.PORT, () => {
     logger.info(`Server running on port ${env.PORT}`);
   });
 
   const shutdown = (signal: string) => {
-    logger.info(`${signal} signal received: closing HTTP server`);
+    logger.info(`${signal} signal received: closing HTTP server and worker`);
     server.close(async () => {
       logger.info('HTTP server closed');
       try {
+        if (workerInstance) {
+          await workerInstance.shutdown(signal);
+        }
         await pool.end();
         logger.info('Database pool drained');
         process.exit(0);

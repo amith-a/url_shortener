@@ -152,6 +152,19 @@ export class UrlRepository implements IUrlRepository {
     return result.rows[0]?.total ?? 0;
   }
 
+  async deleteExpiredUrls(): Promise<string[]> {
+    const query = `
+      DELETE FROM urls
+      WHERE expires_at IS NOT NULL
+        AND expires_at <= NOW()
+      RETURNING short_code;
+    `;
+
+    const result = await pool.query<{ short_code: string }>(query);
+
+    return result.rows.map((row) => row.short_code);
+  }
+
   private mapToDto(row: UrlRow): UrlDto {
     return {
       id: row.id,
