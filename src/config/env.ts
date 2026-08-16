@@ -50,11 +50,23 @@ const envSchema = z
       })
       .refine(
         (origins) =>
-          origins.every(
-            (origin) => origin === '*' || /^https?:\/\//i.test(origin)
-          ),
+          origins.every((origin) => {
+            if (origin === '*') {
+              return true;
+            }
+            try {
+              const parsed = new URL(origin);
+              return (
+                (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+                parsed.origin === origin
+              );
+            } catch {
+              return false;
+            }
+          }),
         {
-          message: 'All CORS origins must be valid HTTP/HTTPS URLs or "*"',
+          message:
+            'All CORS origins must be valid HTTP or HTTPS origin URLs (e.g. http://localhost:3000, https://example.com) or "*"',
         }
       ),
 

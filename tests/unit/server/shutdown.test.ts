@@ -9,6 +9,7 @@ describe('gracefulShutdown', () => {
 
   beforeEach(() => {
     resetShutdownStateForTesting();
+    vi.clearAllMocks();
     mockServer = {
       close: vi.fn((cb?: (err?: Error) => void) => {
         if (cb) cb();
@@ -36,5 +37,40 @@ describe('gracefulShutdown', () => {
     await Promise.all([shutdownPromise1, shutdownPromise2]);
 
     expect(mockServer.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('should trigger closeAllConnections and close pool/redis when server.close hangs past shutdown timeout', async () => {
+    vi.useFakeTimers();
+
+    let serverCloseCallback: ((err?: Error) => void) | undefined;
+    const hangingServer = {
+      close: vi.fn((cb?: (err?: Error) => void) => {
+        serverCloseCallback = cb;
+        return hangingServer;
+      }),
+      closeAllConnections: vi.fn(),
+    } as unknown as Server;
+
+    const shutdownPromise = gracefulShutdown(hangingServer, 'SIGTERM', 3000);
+
+    expect(hangingServer.close).toHaveBeenCalledTimes(1);
+    expect(hangingServer.closeAllConnections).not.toHaveBeenCalled();
+
+    // Advance fake timers past shutdownTimeoutMs
+    vi.advanceTimersByTime(3500);
+
+    expect(hangingServer.closeAllConnections).toHaveBeenCalledTimes(1);
+
+    // Simulate server finish closing after force destruction
+    if (serverCloseCallback) {
+      serverCloseCallback();
+    }
+
+    await shutdownPromise;
+
+    expect(pool.end).toHaveBeenCalledTimes(1);
+    expect(redis.quit).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
   });
 });

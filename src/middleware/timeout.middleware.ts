@@ -2,6 +2,13 @@ import type { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
+/**
+ * Centralized HTTP request timeout middleware.
+ * Enforces an HTTP response deadline using `env.REQUEST_TIMEOUT_MS`.
+ * If the deadline expires before a response is sent, returns 503 Service Unavailable.
+ * Note: This middleware manages the HTTP response boundary and cleans up timers on completion;
+ * it does not perform application-wide task cancellation.
+ */
 export function createTimeoutMiddleware(
   timeoutMs: number = env.REQUEST_TIMEOUT_MS
 ) {

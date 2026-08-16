@@ -79,4 +79,20 @@ describe('createTimeoutMiddleware', () => {
     expect(mockRes.status).not.toHaveBeenCalled();
     expect(mockRes.json).not.toHaveBeenCalled();
   });
+
+  it('should clean up timer when response closes before timeout', () => {
+    const middleware = createTimeoutMiddleware(5000);
+    middleware(mockReq as Request, mockRes as Response, nextFn);
+
+    expect(nextFn).toHaveBeenCalledTimes(1);
+
+    // Simulate response close event
+    eventListeners['close']?.();
+
+    // Advance time past timeout
+    vi.advanceTimersByTime(6000);
+
+    expect(mockRes.status).not.toHaveBeenCalled();
+    expect(mockRes.json).not.toHaveBeenCalled();
+  });
 });
