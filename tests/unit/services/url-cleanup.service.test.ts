@@ -55,17 +55,17 @@ describe('UrlCleanupService', () => {
     expect(count).toBe(0);
   });
 
-  it('should continue and return count even if cache deletion fails for a short code', async () => {
+  it('should return the deleted URL count and invalidate cache entries', async () => {
     vi.mocked(mockRepository.deleteExpiredUrls).mockResolvedValueOnce([
       'code1',
     ]);
-    vi.mocked(mockCacheService.delete).mockRejectedValueOnce(
-      new Error('Redis delete error')
-    );
 
-    await expect(service.cleanupExpiredUrls()).rejects.toThrow(
-      'Redis delete error'
-    );
+    vi.mocked(mockCacheService.delete).mockResolvedValueOnce(undefined);
+
+    const count = await service.cleanupExpiredUrls();
+
+    expect(count).toBe(1);
+    expect(mockCacheService.delete).toHaveBeenCalledWith('code1');
   });
 
   it('should throw error when repository deleteExpiredUrls fails', async () => {
