@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getUrlSchema, listUrlsQuerySchema, urlSchema } from '../../../src/validators/url.validator';
+import {
+  getUrlSchema,
+  listUrlsQuerySchema,
+  urlIdParamSchema,
+  urlSchema,
+} from '../../../src/validators/url.validator';
 
 describe('url.validator', () => {
   describe('urlSchema', () => {
@@ -110,6 +115,22 @@ describe('url.validator', () => {
 
       for (const query of invalidQueries) {
         const result = listUrlsQuerySchema.safeParse(query);
+        expect(result.success).toBe(false);
+      }
+    });
+  });
+
+  describe('urlIdParamSchema', () => {
+    it('should validate valid UUID string', () => {
+      const validUuid = '123e4567-e89b-12d3-a456-426614174000';
+      const result = urlIdParamSchema.safeParse({ id: validUuid });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid UUID string', () => {
+      const invalidUuids = ['not-a-uuid', '123', ''];
+      for (const id of invalidUuids) {
+        const result = urlIdParamSchema.safeParse({ id });
         expect(result.success).toBe(false);
       }
     });

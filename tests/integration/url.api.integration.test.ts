@@ -673,5 +673,35 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       );
       expect(clicksAfter.rows.length).toBe(0);
     });
+
+    it('should return 400 Bad Request when getting analytics with a malformed non-UUID id', async () => {
+      const user = await registerAndLogin(
+        'invalid_uuid_analytics@example.com',
+        'Invalid UUID User'
+      );
+
+      const res = await request(app)
+        .get('/api/v1/urls/invalid-uuid-format/analytics')
+        .set('Cookie', user.cookies);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation failed');
+    });
+
+    it('should return 400 Bad Request when deleting URL with a malformed non-UUID id', async () => {
+      const user = await registerAndLogin(
+        'invalid_uuid_delete@example.com',
+        'Invalid UUID User'
+      );
+
+      const res = await request(app)
+        .delete('/api/v1/urls/not-a-valid-uuid')
+        .set('Cookie', user.cookies);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation failed');
+    });
   });
 });

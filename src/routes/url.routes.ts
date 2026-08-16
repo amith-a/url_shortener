@@ -10,6 +10,7 @@ import { createRateLimiter } from '../middleware/rate-limit.middleware';
 import {
   getUrlSchema,
   listUrlsQuerySchema,
+  urlIdParamSchema,
   urlSchema,
 } from '../validators/url.validator';
 import { requireAuth } from '../middleware/auth.middleware';
@@ -38,6 +39,9 @@ router.get(
 router.get(
   '/:id/analytics',
   requireAuth,
+  validate({
+    params: urlIdParamSchema,
+  }),
   analyticsController.getAnalytics.bind(analyticsController)
 );
 
@@ -50,6 +54,13 @@ router.get(
   controller.redirect.bind(controller)
 );
 
-router.delete('/:id', requireAuth, controller.delete.bind(controller));
+router.delete(
+  '/:id',
+  requireAuth,
+  validate({
+    params: urlIdParamSchema,
+  }),
+  controller.delete.bind(controller)
+);
 
 export default router;

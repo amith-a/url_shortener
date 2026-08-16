@@ -76,5 +76,10 @@ export const listUrlsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
+export const urlIdParamSchema = z.object({
+  id: z.string().uuid('Invalid URL ID format'),
+});
+
 export type CreateShortUrlRequest = z.infer<typeof urlSchema>;
 export type GetUrlRequest = z.infer<typeof getUrlSchema>;
+export type UrlIdParamRequest = z.infer<typeof urlIdParamSchema>;
