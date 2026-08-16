@@ -125,6 +125,12 @@ describe('Expired URL Cleanup Integration (Real PostgreSQL & Redis Test DB)', ()
     const expiredCache = await cacheService.get(expiredUrl.shortCode);
     expect(expiredCache).toBeNull();
 
+    const activeCache = await cacheService.get(activeUrl.shortCode);
+    expect(activeCache).toEqual({
+      urlId: activeUrl.id,
+      originalUrl: activeUrl.originalUrl,
+    });
+
     // 7. Verify ON DELETE CASCADE deleted click events for the expired URL
     const postCleanupClicks = await pool.query(
       'SELECT COUNT(*)::int AS count FROM url_click_events WHERE url_id = $1',

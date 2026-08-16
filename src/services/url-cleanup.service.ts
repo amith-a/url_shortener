@@ -22,7 +22,7 @@ export class UrlCleanupService {
       }
 
       logger.info(
-        { count: deletedShortCodes.length, shortCodes: deletedShortCodes },
+        { count: deletedShortCodes.length },
         `Expired URL cleanup completed: removed ${deletedShortCodes.length} expired URL(s)`
       );
 
