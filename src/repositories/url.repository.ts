@@ -92,6 +92,30 @@ export class UrlRepository implements IUrlRepository {
     return result.rows[0]?.short_code ?? null;
   }
 
+  async findByIdAndUserId(id: string, userId: string): Promise<UrlDto | null> {
+    const query = `
+      SELECT
+        id,
+        short_code,
+        original_url,
+        created_at,
+        expires_at,
+        user_id
+      FROM urls
+      WHERE id = $1 AND user_id = $2;
+    `;
+
+    const result = await pool.query<UrlRow>(query, [id, userId]);
+
+    const row = result.rows.at(0);
+
+    if (!row) {
+      return null;
+    }
+
+    return this.mapToDto(row);
+  }
+
   async listByUserId(
     userId: string,
     limit: number,

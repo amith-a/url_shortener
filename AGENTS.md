@@ -550,7 +550,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-16, after Redis rate limiting implementation._
+_Last updated: 2026-08-16, after URL Analytics implementation._
 
 This section is a snapshot of what is actually implemented.
 
@@ -606,6 +606,12 @@ DELETE /api/v1/urls/:id
 
 Deletes a short URL owned by the authenticated user (returns 204 No Content for owner, 404 Not Found for non-owner/non-existent).
 
+```text
+GET /api/v1/urls/:id/analytics
+```
+
+Returns total click count for a short URL owned by the authenticated user (requires authentication; returns 404 Not Found for non-owners/non-existent).
+
 ---
 
 ## Current URL Creation Flow
@@ -658,6 +664,16 @@ created_at   TIMESTAMPTZ / NOT NULL
 expires_at   TIMESTAMPTZ / NULL
 user_id      TEXT / NULL / FK to "user"("id")
 ```
+
+The `url_click_events` table currently contains:
+
+```text
+id         UUID / primary key / DEFAULT gen_random_uuid()
+url_id     UUID / NOT NULL / FK to "urls"("id") ON DELETE CASCADE
+clicked_at TIMESTAMPTZ / NOT NULL / DEFAULT NOW()
+```
+
+Index: `idx_url_click_events_url_id_clicked_at` on `(url_id, clicked_at DESC)`.
 
 Schema changes must be made through migrations.
 
@@ -844,19 +860,15 @@ Key details:
 
 ## Analytics
 
-Not implemented yet.
+Implemented simple, privacy-focused URL click tracking (Roadmap Item 10).
 
-Planned analytics may include:
-
-- Total clicks
-- Clicks over time
-- Referrers
-- Device information
-- Browser information
-
-The initial implementation should remain simple.
-
-Do not introduce a complex analytics platform.
+Key details:
+- **Click Event Schema**: `url_click_events (id, url_id, clicked_at)`. No IP addresses, user agents, referrers, or location data are stored.
+- **Cascade Deletion**: Foreign key constraint `ON DELETE CASCADE` automatically deletes click events when a URL is deleted.
+- **Resolution Tracking**: Click events are recorded ONLY on successful URL resolution redirects (`302 Found`). No click is recorded on 404, 410, 400, 401, or 429 responses.
+- **Cache Hit / Miss Recording**: Redis resolution cache stores JSON payload `{ "urlId": "uuid", "originalUrl": "https://example.com" }` so click events are recorded on both Cache MISS and Cache HIT.
+- **Fail-Open Resilience**: If database click insertion fails, the error is logged and the `302 Found` redirect proceeds without interrupting the user.
+- **Owner Analytics Endpoint**: `GET /api/v1/urls/:id/analytics` protected by `requireAuth`. Validates `urls.user_id = req.user.id` and returns `{ urlId, totalClicks }`. Non-owners receive `404 Not Found` (user isolation).
 
 ---
 
@@ -1012,7 +1024,15 @@ Current roadmap:
    - Added headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` on HTTP 429
    - Added unit tests (`rate-limit.service.test.ts`, `rate-limit.middleware.test.ts`) and real Redis integration tests (`rate-limit.api.integration.test.ts`)
 
-10. Analytics
+10. ~~Analytics~~
+   Done:
+   - Added `url_click_events` migration with `ON DELETE CASCADE` foreign key and compound index `(url_id, clicked_at DESC)`
+   - Implemented `UrlAnalyticsRepository` and `UrlAnalyticsService`
+   - Updated `UrlCacheService` payload to JSON `{ urlId, originalUrl }` with legacy fallback
+   - Updated `UrlService.resolveShortCode` to record click events on Cache MISS and Cache HIT with fail-open error logging
+   - Added authenticated `GET /api/v1/urls/:id/analytics` endpoint returning `{ urlId, totalClicks }` with strict owner isolation
+   - Added unit tests (`url-analytics.service.test.ts`, `url-analytics.repository.test.ts`, updated `url.service.test.ts` & `url-cache.service.test.ts`)
+   - Added integration test coverage in `tests/integration/url.api.integration.test.ts`
 
 11. Background jobs
 
@@ -1030,7 +1050,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Analytics
+Background jobs
 ```
 
 ---

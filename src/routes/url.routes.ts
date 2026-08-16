@@ -1,6 +1,10 @@
 import { Router } from 'express';
 
-import { controller, rateLimitService } from '../bootstrap/url.bootstrap';
+import {
+  analyticsController,
+  controller,
+  rateLimitService,
+} from '../bootstrap/url.bootstrap';
 import { validate } from '../middleware/validate.middleware';
 import { createRateLimiter } from '../middleware/rate-limit.middleware';
 import {
@@ -29,6 +33,12 @@ router.get(
     query: listUrlsQuerySchema,
   }),
   controller.list.bind(controller)
+);
+
+router.get(
+  '/:id/analytics',
+  requireAuth,
+  analyticsController.getAnalytics.bind(analyticsController)
 );
 
 router.get(

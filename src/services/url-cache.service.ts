@@ -1,6 +1,11 @@
 import type { Redis } from 'ioredis';
 import { logger } from '../config/logger';
 
+export interface CachedUrlPayload {
+  urlId: string;
+  originalUrl: string;
+}
+
 export class UrlCacheService {
   constructor(private readonly client: Redis) {}
 
@@ -8,13 +13,29 @@ export class UrlCacheService {
     return `url:${shortCode}`;
   }
 
-  async get(shortCode: string): Promise<string | null> {
+  async get(shortCode: string): Promise<CachedUrlPayload | null> {
     const key = this.buildKey(shortCode);
     try {
-      const cachedUrl = await this.client.get(key);
-      if (cachedUrl) {
+      const cachedValue = await this.client.get(key);
+      if (cachedValue) {
         logger.debug({ shortCode, key }, 'Redis cache hit for short code');
-        return cachedUrl;
+        try {
+          const parsed = JSON.parse(cachedValue) as CachedUrlPayload;
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            parsed.urlId &&
+            parsed.originalUrl
+          ) {
+            return parsed;
+          }
+        } catch {
+          logger.warn(
+            { shortCode, key },
+            'Legacy raw string found in cache, treating as cache miss'
+          );
+          return null;
+        }
       }
       logger.debug({ shortCode, key }, 'Redis cache miss for short code');
       return null;
@@ -29,7 +50,7 @@ export class UrlCacheService {
 
   async set(
     shortCode: string,
-    originalUrl: string,
+    payload: CachedUrlPayload,
     ttlSeconds: number
   ): Promise<void> {
     if (ttlSeconds <= 0) {
@@ -38,10 +59,10 @@ export class UrlCacheService {
 
     const key = this.buildKey(shortCode);
     try {
-      await this.client.set(key, originalUrl, 'EX', ttlSeconds);
+      await this.client.set(key, JSON.stringify(payload), 'EX', ttlSeconds);
       logger.debug(
         { shortCode, key, ttlSeconds },
-        'Cached original URL in Redis successfully'
+        'Cached URL payload in Redis successfully'
       );
     } catch (err) {
       logger.error(

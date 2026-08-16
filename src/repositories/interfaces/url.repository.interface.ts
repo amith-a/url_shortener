@@ -5,6 +5,7 @@ export interface IUrlRepository {
   create(urlData: CreateUrlDto): Promise<UrlDto>;
   findByShortCode(shortCode: string): Promise<UrlDto | null>;
   deleteByIdAndUserId(id: string, userId: string): Promise<string | null>;
+  findByIdAndUserId(id: string, userId: string): Promise<UrlDto | null>;
   listByUserId(
     userId: string,
     limit: number,

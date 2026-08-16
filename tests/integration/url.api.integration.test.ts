@@ -15,7 +15,7 @@ async function safeCleanupUrlTables() {
   }
 
   await pool.query(
-    'TRUNCATE TABLE urls, "session", "account", "user", "verification" RESTART IDENTITY CASCADE'
+    'TRUNCATE TABLE url_click_events, urls, "session", "account", "user", "verification" RESTART IDENTITY CASCADE'
   );
 
   await cacheService.flushTestKeys();
@@ -231,7 +231,9 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       // Populate Redis cache via first GET request
       const firstGetRes = await request(app).get(`/api/v1/urls/${shortCode}`);
       expect(firstGetRes.status).toBe(302);
-      expect(await cacheService.get(shortCode)).toBe('https://example.com/user-a-url');
+      expect((await cacheService.get(shortCode))?.originalUrl).toBe(
+        'https://example.com/user-a-url'
+      );
 
       // Delete URL
       const deleteRes = await request(app)
@@ -421,12 +423,16 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       expect(res1.headers.location).toBe('https://example.com/cached-redirect-target');
 
       // Verify key is now cached in Redis
-      expect(await cacheService.get(shortCode)).toBe('https://example.com/cached-redirect-target');
+      expect((await cacheService.get(shortCode))?.originalUrl).toBe(
+        'https://example.com/cached-redirect-target'
+      );
 
       // Second resolution (Cache HIT)
       const res2 = await request(app).get(`/api/v1/urls/${shortCode}`);
       expect(res2.status).toBe(302);
-      expect(res2.headers.location).toBe('https://example.com/cached-redirect-target');
+      expect(res2.headers.location).toBe(
+        'https://example.com/cached-redirect-target'
+      );
     });
 
     it('should return 410 Gone when short URL has expired', async () => {
@@ -460,6 +466,208 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
         success: false,
         message: 'Short URL not found',
       });
+    });
+  });
+
+  describe('URL Analytics Integration Tests', () => {
+    it('should record one click event on successful redirect and allow owner to retrieve analytics', async () => {
+      const user = await registerAndLogin(
+        'analytics_owner@example.com',
+        'Analytics Owner'
+      );
+
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', user.cookies)
+        .send({ originalUrl: 'https://example.com/analytics-target' });
+
+      const { id: urlId, shortCode } = createRes.body;
+
+      // Initial click count is 0
+      const initialAnalyticsRes = await request(app)
+        .get(`/api/v1/urls/${urlId}/analytics`)
+        .set('Cookie', user.cookies);
+
+      expect(initialAnalyticsRes.status).toBe(200);
+      expect(initialAnalyticsRes.body).toEqual({
+        urlId,
+        totalClicks: 0,
+      });
+
+      // Perform single resolution redirect
+      const redirectRes = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(redirectRes.status).toBe(302);
+
+      // Verify click count is now 1
+      const updatedAnalyticsRes = await request(app)
+        .get(`/api/v1/urls/${urlId}/analytics`)
+        .set('Cookie', user.cookies);
+
+      expect(updatedAnalyticsRes.status).toBe(200);
+      expect(updatedAnalyticsRes.body).toEqual({
+        urlId,
+        totalClicks: 1,
+      });
+
+      // Verify PostgreSQL row
+      const clicksDbRes = await pool.query<{ url_id: string }>(
+        'SELECT url_id FROM url_click_events WHERE url_id = $1',
+        [urlId]
+      );
+      expect(clicksDbRes.rows.length).toBe(1);
+    });
+
+    it('should increment totalClicks for multiple redirects', async () => {
+      const user = await registerAndLogin(
+        'analytics_multi@example.com',
+        'Multi Clicker'
+      );
+
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', user.cookies)
+        .send({ originalUrl: 'https://example.com/multi-target' });
+
+      const { id: urlId, shortCode } = createRes.body;
+
+      // Perform 3 redirects
+      await request(app).get(`/api/v1/urls/${shortCode}`);
+      await request(app).get(`/api/v1/urls/${shortCode}`);
+      await request(app).get(`/api/v1/urls/${shortCode}`);
+
+      const analyticsRes = await request(app)
+        .get(`/api/v1/urls/${urlId}/analytics`)
+        .set('Cookie', user.cookies);
+
+      expect(analyticsRes.status).toBe(200);
+      expect(analyticsRes.body).toEqual({
+        urlId,
+        totalClicks: 3,
+      });
+    });
+
+    it('should return 404 Not Found when User B attempts to access User A analytics (User Isolation)', async () => {
+      const userA = await registerAndLogin('userA_anal@example.com', 'User A');
+      const userB = await registerAndLogin('userB_anal@example.com', 'User B');
+
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', userA.cookies)
+        .send({ originalUrl: 'https://example.com/user-a-secret-url' });
+
+      const urlId = createRes.body.id;
+
+      const res = await request(app)
+        .get(`/api/v1/urls/${urlId}/analytics`)
+        .set('Cookie', userB.cookies);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({
+        success: false,
+        message: 'Short URL not found',
+      });
+    });
+
+    it('should return 401 Unauthorized for unauthenticated GET /api/v1/urls/:id/analytics', async () => {
+      const res = await request(app).get(
+        '/api/v1/urls/11111111-1111-1111-1111-111111111111/analytics'
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should not record click event when resolution fails for expired URL (410 Gone)', async () => {
+      const pastDate = new Date(Date.now() - 60000);
+      const urlId = '22222222-2222-2222-2222-222222222222';
+      await pool.query(
+        `INSERT INTO urls (id, original_url, short_code, created_at, expires_at)
+         VALUES ($1, $2, $3, NOW(), $4)`,
+        [
+          urlId,
+          'https://example.com/no-click-expired',
+          'noclickexp',
+          pastDate,
+        ]
+      );
+
+      const res = await request(app).get('/api/v1/urls/noclickexp');
+      expect(res.status).toBe(410);
+
+      const dbRes = await pool.query(
+        'SELECT id FROM url_click_events WHERE url_id = $1',
+        [urlId]
+      );
+      expect(dbRes.rows.length).toBe(0);
+    });
+
+    it('should record clicks on both Cache MISS and Cache HIT', async () => {
+      const user = await registerAndLogin(
+        'cache_hit_analytics@example.com',
+        'Cache Hit User'
+      );
+
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', user.cookies)
+        .send({ originalUrl: 'https://example.com/hit-target' });
+
+      const { id: urlId, shortCode } = createRes.body;
+
+      // 1st resolution (Cache MISS)
+      const res1 = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(res1.status).toBe(302);
+
+      // 2nd resolution (Cache HIT)
+      const res2 = await request(app).get(`/api/v1/urls/${shortCode}`);
+      expect(res2.status).toBe(302);
+
+      const analyticsRes = await request(app)
+        .get(`/api/v1/urls/${urlId}/analytics`)
+        .set('Cookie', user.cookies);
+
+      expect(analyticsRes.status).toBe(200);
+      expect(analyticsRes.body).toEqual({
+        urlId,
+        totalClicks: 2,
+      });
+    });
+
+    it('should automatically cascade delete click events when URL is deleted by owner', async () => {
+      const user = await registerAndLogin(
+        'cascade_owner@example.com',
+        'Cascade Owner'
+      );
+
+      const createRes = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', user.cookies)
+        .send({ originalUrl: 'https://example.com/cascade-target' });
+
+      const { id: urlId, shortCode } = createRes.body;
+
+      // Record 2 clicks
+      await request(app).get(`/api/v1/urls/${shortCode}`);
+      await request(app).get(`/api/v1/urls/${shortCode}`);
+
+      const clicksBefore = await pool.query(
+        'SELECT id FROM url_click_events WHERE url_id = $1',
+        [urlId]
+      );
+      expect(clicksBefore.rows.length).toBe(2);
+
+      // Delete URL as owner
+      const deleteRes = await request(app)
+        .delete(`/api/v1/urls/${urlId}`)
+        .set('Cookie', user.cookies);
+
+      expect(deleteRes.status).toBe(204);
+
+      // Verify click events were deleted via ON DELETE CASCADE
+      const clicksAfter = await pool.query(
+        'SELECT id FROM url_click_events WHERE url_id = $1',
+        [urlId]
+      );
+      expect(clicksAfter.rows.length).toBe(0);
     });
   });
 });

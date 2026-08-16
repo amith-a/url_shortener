@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UrlService } from '../../../src/services/url.service';
 import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
 import type { UrlCacheService } from '../../../src/services/url-cache.service';
+import type { UrlAnalyticsService } from '../../../src/services/url-analytics.service';
 
 describe('UrlService', () => {
   let repository: IUrlRepository;
   let cacheService: UrlCacheService;
+  let analyticsService: UrlAnalyticsService;
   let service: UrlService;
 
   beforeEach(() => {
@@ -13,6 +15,7 @@ describe('UrlService', () => {
       create: vi.fn(),
       findByShortCode: vi.fn(),
       deleteByIdAndUserId: vi.fn(),
+      findByIdAndUserId: vi.fn(),
       listByUserId: vi.fn(),
       countByUserId: vi.fn(),
     };
@@ -24,7 +27,12 @@ describe('UrlService', () => {
       flushTestKeys: vi.fn(),
     } as unknown as UrlCacheService;
 
-    service = new UrlService(repository, cacheService);
+    analyticsService = {
+      recordClick: vi.fn(),
+      getAnalytics: vi.fn(),
+    } as unknown as UrlAnalyticsService;
+
+    service = new UrlService(repository, cacheService, analyticsService);
   });
 
   describe('create', () => {
@@ -39,7 +47,10 @@ describe('UrlService', () => {
         userId: 'user-123',
       });
 
-      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
+      const result = await service.create(
+        { originalUrl: 'https://example.com' },
+        'user-123'
+      );
 
       expect(repository.findByShortCode).toHaveBeenCalledTimes(1);
       expect(repository.create).toHaveBeenCalledTimes(1);
@@ -74,7 +85,10 @@ describe('UrlService', () => {
         userId: 'user-123',
       });
 
-      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
+      const result = await service.create(
+        { originalUrl: 'https://example.com' },
+        'user-123'
+      );
 
       expect(repository.findByShortCode).toHaveBeenCalledTimes(2);
       expect(repository.create).toHaveBeenCalledTimes(1);
@@ -98,7 +112,10 @@ describe('UrlService', () => {
           userId: 'user-123',
         });
 
-      const result = await service.create({ originalUrl: 'https://example.com' }, 'user-123');
+      const result = await service.create(
+        { originalUrl: 'https://example.com' },
+        'user-123'
+      );
 
       expect(repository.create).toHaveBeenCalledTimes(2);
       expect(result.shortCode).toBe('retry123');
@@ -114,7 +131,9 @@ describe('UrlService', () => {
 
       await expect(
         service.create({ originalUrl: 'https://example.com' }, 'user-123')
-      ).rejects.toThrow('Failed to create short URL due to repeated collisions');
+      ).rejects.toThrow(
+        'Failed to create short URL due to repeated collisions'
+      );
 
       expect(repository.create).toHaveBeenCalledTimes(5);
     });
@@ -165,7 +184,9 @@ describe('UrlService', () => {
 
   describe('deleteUrl', () => {
     it('should delete URL and invalidate Redis cache when id and userId match', async () => {
-      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce('url-123-code');
+      vi.mocked(repository.deleteByIdAndUserId).mockResolvedValueOnce(
+        'url-123-code'
+      );
       vi.mocked(cacheService.delete).mockResolvedValueOnce(undefined);
 
       await expect(
@@ -248,17 +269,24 @@ describe('UrlService', () => {
   });
 
   describe('resolveShortCode', () => {
-    it('should return cached original URL on Cache HIT without querying PostgreSQL', async () => {
-      vi.mocked(cacheService.get).mockResolvedValueOnce('https://cached.com');
+    it('should return cached original URL and record click on Cache HIT without querying PostgreSQL', async () => {
+      vi.mocked(cacheService.get).mockResolvedValueOnce({
+        urlId: 'uuid-cached-1',
+        originalUrl: 'https://cached.com',
+      });
+      vi.mocked(analyticsService.recordClick).mockResolvedValueOnce(undefined);
 
       const url = await service.resolveShortCode('cachedCode');
 
       expect(cacheService.get).toHaveBeenCalledWith('cachedCode');
       expect(repository.findByShortCode).not.toHaveBeenCalled();
+      expect(analyticsService.recordClick).toHaveBeenCalledWith(
+        'uuid-cached-1'
+      );
       expect(url).toBe('https://cached.com');
     });
 
-    it('should query PostgreSQL on Cache MISS, populate cache, and return original URL', async () => {
+    it('should query PostgreSQL on Cache MISS, record click, populate cache with payload, and return original URL', async () => {
       vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
         id: 'uuid-1',
@@ -268,15 +296,17 @@ describe('UrlService', () => {
         expiresAt: null,
         userId: 'user-123',
       });
+      vi.mocked(analyticsService.recordClick).mockResolvedValueOnce(undefined);
       vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
 
       const url = await service.resolveShortCode('abc12345');
 
       expect(cacheService.get).toHaveBeenCalledWith('abc12345');
       expect(repository.findByShortCode).toHaveBeenCalledWith('abc12345');
+      expect(analyticsService.recordClick).toHaveBeenCalledWith('uuid-1');
       expect(cacheService.set).toHaveBeenCalledWith(
         'abc12345',
-        'https://example.com',
+        { urlId: 'uuid-1', originalUrl: 'https://example.com' },
         expect.any(Number)
       );
       expect(url).toBe('https://example.com');
@@ -293,19 +323,21 @@ describe('UrlService', () => {
         expiresAt: futureDate,
         userId: 'user-123',
       });
+      vi.mocked(analyticsService.recordClick).mockResolvedValueOnce(undefined);
       vi.mocked(cacheService.set).mockResolvedValueOnce(undefined);
 
       const url = await service.resolveShortCode('future12');
 
       expect(url).toBe('https://example.com');
+      expect(analyticsService.recordClick).toHaveBeenCalledWith('uuid-1');
       expect(cacheService.set).toHaveBeenCalledWith(
         'future12',
-        'https://example.com',
+        { urlId: 'uuid-1', originalUrl: 'https://example.com' },
         expect.any(Number)
       );
     });
 
-    it('should delete cache key and throw GoneError when URL is expired in PostgreSQL', async () => {
+    it('should delete cache key and throw GoneError without recording click when URL is expired in PostgreSQL', async () => {
       vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       const pastDate = new Date(Date.now() - 1000);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
@@ -322,20 +354,22 @@ describe('UrlService', () => {
         'URL has expired'
       );
       expect(cacheService.delete).toHaveBeenCalledWith('expired1');
+      expect(analyticsService.recordClick).not.toHaveBeenCalled();
       expect(cacheService.set).not.toHaveBeenCalled();
     });
 
-    it('should throw NotFoundError when short code does not exist in PostgreSQL and not cache result', async () => {
+    it('should throw NotFoundError without recording click when short code does not exist in PostgreSQL', async () => {
       vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce(null);
 
       await expect(service.resolveShortCode('nonexistent')).rejects.toThrow(
         'Short URL not found'
       );
+      expect(analyticsService.recordClick).not.toHaveBeenCalled();
       expect(cacheService.set).not.toHaveBeenCalled();
     });
 
-    it('should fallback to PostgreSQL if cacheService.get fails', async () => {
+    it('should fail open and return URL when analyticsService.recordClick fails', async () => {
       vi.mocked(cacheService.get).mockResolvedValueOnce(null);
       vi.mocked(repository.findByShortCode).mockResolvedValueOnce({
         id: 'uuid-1',
@@ -345,6 +379,9 @@ describe('UrlService', () => {
         expiresAt: null,
         userId: 'user-123',
       });
+      vi.mocked(analyticsService.recordClick).mockRejectedValueOnce(
+        new Error('DB click failure')
+      );
 
       const url = await service.resolveShortCode('abc12345');
 

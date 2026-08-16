@@ -13,13 +13,16 @@ import AppError from '../errors/app-error';
 import { logger } from '../config/logger';
 import { env } from '../config/env';
 
+import type { UrlAnalyticsService } from './url-analytics.service';
+
 const PG_UNIQUE_VIOLATION = '23505';
 const MAX_ATTEMPTS = 5;
 
 export class UrlService {
   constructor(
     private readonly repository: IUrlRepository,
-    private readonly cacheService: UrlCacheService
+    private readonly cacheService: UrlCacheService,
+    private readonly analyticsService: UrlAnalyticsService
   ) {}
 
   private generateId(): string {
@@ -164,13 +167,21 @@ export class UrlService {
   }
 
   async resolveShortCode(shortCode: string): Promise<string> {
-    const cachedUrl = await this.cacheService.get(shortCode);
-    if (cachedUrl) {
+    const cachedPayload = await this.cacheService.get(shortCode);
+    if (cachedPayload) {
       logger.debug(
         { shortCode },
         'Short code resolved from cache successfully'
       );
-      return cachedUrl;
+      try {
+        await this.analyticsService.recordClick(cachedPayload.urlId);
+      } catch (err) {
+        logger.error(
+          { err, shortCode, urlId: cachedPayload.urlId },
+          'Failed to record URL click event'
+        );
+      }
+      return cachedPayload.originalUrl;
     }
 
     const response = await this.repository.findByShortCode(shortCode);
@@ -195,6 +206,15 @@ export class UrlService {
       throw new GoneError('URL has expired');
     }
 
+    try {
+      await this.analyticsService.recordClick(response.id);
+    } catch (err) {
+      logger.error(
+        { err, shortCode, urlId: response.id },
+        'Failed to record URL click event'
+      );
+    }
+
     let effectiveTtl = env.REDIS_URL_TTL;
     if (response.expiresAt !== null) {
       const remainingSeconds = Math.floor(
@@ -206,7 +226,7 @@ export class UrlService {
     if (effectiveTtl > 0) {
       await this.cacheService.set(
         shortCode,
-        response.originalUrl,
+        { urlId: response.id, originalUrl: response.originalUrl },
         effectiveTtl
       );
     }
