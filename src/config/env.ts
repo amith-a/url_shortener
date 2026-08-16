@@ -20,8 +20,7 @@ const envSchema = z.object({
 
   BETTER_AUTH_SECRET: z
     .string()
-    .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long')
-    .default('default-secret-key-at-least-32-chars-long-for-dev-and-testing'),
+    .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long'),
   BETTER_AUTH_URL: z.string().url().optional(),
 
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
