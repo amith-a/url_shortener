@@ -18,6 +18,7 @@ describe('UrlService', () => {
       findByIdAndUserId: vi.fn(),
       listByUserId: vi.fn(),
       countByUserId: vi.fn(),
+      deleteExpiredUrls: vi.fn(),
     };
 
     cacheService = {
