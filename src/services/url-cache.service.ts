@@ -90,9 +90,25 @@ export class UrlCacheService {
 
   async flushTestKeys(): Promise<void> {
     try {
-      const keys = await this.client.keys('url:*');
-      if (keys.length > 0) {
-        await this.client.del(...keys);
+      let cursor = '0';
+      const keysToDelete: string[] = [];
+
+      do {
+        const [nextCursor, keys] = await this.client.scan(
+          cursor,
+          'MATCH',
+          'url:*',
+          'COUNT',
+          100
+        );
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          keysToDelete.push(...keys);
+        }
+      } while (cursor !== '0');
+
+      if (keysToDelete.length > 0) {
+        await this.client.del(...keysToDelete);
       }
     } catch (err) {
       logger.error({ err }, 'Failed to flush test keys from Redis');

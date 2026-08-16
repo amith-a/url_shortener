@@ -11,7 +11,7 @@ describe('UrlCacheService', () => {
       get: vi.fn(),
       set: vi.fn(),
       del: vi.fn(),
-      keys: vi.fn(),
+      scan: vi.fn(),
     } as unknown as Redis;
 
     cacheService = new UrlCacheService(mockRedis);
@@ -122,23 +122,71 @@ describe('UrlCacheService', () => {
   });
 
   describe('flushTestKeys', () => {
-    it('should delete keys matching url:* if present', async () => {
-      vi.mocked(mockRedis.keys).mockResolvedValueOnce(['url:1', 'url:2']);
+    it('should scan and delete keys matching url:* if present', async () => {
+      vi.mocked(mockRedis.scan).mockResolvedValueOnce(['0', ['url:1', 'url:2']]);
       vi.mocked(mockRedis.del).mockResolvedValueOnce(2);
 
       await cacheService.flushTestKeys();
 
-      expect(mockRedis.keys).toHaveBeenCalledWith('url:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'url:*',
+        'COUNT',
+        100
+      );
+      expect(mockRedis.del).toHaveBeenCalledWith('url:1', 'url:2');
+    });
+
+    it('should iterate through multiple SCAN pages until cursor returns to 0', async () => {
+      vi.mocked(mockRedis.scan)
+        .mockResolvedValueOnce(['42', ['url:1']])
+        .mockResolvedValueOnce(['0', ['url:2']]);
+      vi.mocked(mockRedis.del).mockResolvedValueOnce(2);
+
+      await cacheService.flushTestKeys();
+
+      expect(mockRedis.scan).toHaveBeenCalledTimes(2);
+      expect(mockRedis.scan).toHaveBeenNthCalledWith(
+        1,
+        '0',
+        'MATCH',
+        'url:*',
+        'COUNT',
+        100
+      );
+      expect(mockRedis.scan).toHaveBeenNthCalledWith(
+        2,
+        '42',
+        'MATCH',
+        'url:*',
+        'COUNT',
+        100
+      );
       expect(mockRedis.del).toHaveBeenCalledWith('url:1', 'url:2');
     });
 
     it('should do nothing if no matching keys exist', async () => {
-      vi.mocked(mockRedis.keys).mockResolvedValueOnce([]);
+      vi.mocked(mockRedis.scan).mockResolvedValueOnce(['0', []]);
 
       await cacheService.flushTestKeys();
 
-      expect(mockRedis.keys).toHaveBeenCalledWith('url:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'url:*',
+        'COUNT',
+        100
+      );
       expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+
+    it('should handle Redis scan error gracefully', async () => {
+      vi.mocked(mockRedis.scan).mockRejectedValueOnce(
+        new Error('Redis SCAN failure')
+      );
+
+      await expect(cacheService.flushTestKeys()).resolves.not.toThrow();
     });
   });
 });
