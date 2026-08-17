@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
+import express from 'express';
 import app from '../../src/app';
 import pool from '../../src/config/database';
+import { redis } from '../../src/config/redis';
+import { createTimeoutMiddleware } from '../../src/middleware/timeout.middleware';
 
 describe('Health & Hardening API Integration Tests', () => {
   describe('GET /health', () => {
@@ -33,6 +36,19 @@ describe('Health & Hardening API Integration Tests', () => {
 
       querySpy.mockRestore();
     });
+
+    it('should return 503 Service Unavailable with status not_ready when Redis ping fails', async () => {
+      const pingSpy = vi.spyOn(redis, 'ping').mockImplementationOnce(() => {
+        throw new Error('Simulated Redis failure');
+      });
+
+      const response = await request(app).get('/ready');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ status: 'not_ready' });
+
+      pingSpy.mockRestore();
+    });
   });
 
   describe('Security Headers & Request ID', () => {
@@ -53,6 +69,53 @@ describe('Health & Hardening API Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.headers['x-request-id']).toBe(customId);
+    });
+
+    it('should fallback to generated UUID when incoming X-Request-ID has invalid characters', async () => {
+      const invalidHeader = 'invalid@header!value';
+      const response = await request(app)
+        .get('/health')
+        .set('X-Request-ID', invalidHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['x-request-id']).toBeDefined();
+      expect(response.headers['x-request-id']).not.toBe(invalidHeader);
+      expect(response.headers['x-request-id']).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
+    });
+
+    it('should fallback to generated UUID when incoming X-Request-ID is oversized (> 64 chars)', async () => {
+      const oversizedHeader = 'a'.repeat(65);
+      const response = await request(app)
+        .get('/health')
+        .set('X-Request-ID', oversizedHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['x-request-id']).toBeDefined();
+      expect(response.headers['x-request-id']).not.toBe(oversizedHeader);
+      expect(response.headers['x-request-id']).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
+    });
+  });
+
+  describe('Request Timeout Middleware Integration', () => {
+    it('should return 503 Service Unavailable when request execution exceeds timeout', async () => {
+      const testApp = express();
+      testApp.use(createTimeoutMiddleware(50));
+      testApp.get('/test-timeout', (_req, res) => {
+        setTimeout(() => {
+          if (!res.headersSent) {
+            res.json({ status: 'completed' });
+          }
+        }, 100);
+      });
+
+      const response = await request(testApp).get('/test-timeout');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: 'Request timeout' });
     });
   });
 

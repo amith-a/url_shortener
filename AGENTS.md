@@ -1066,7 +1066,17 @@ Current roadmap:
    - Preserved worker process isolation (src/worker.ts as separate process)
    - Added unit and integration test suites
 
-13. Testing / retroactive coverage pass
+13. ~~Testing / retroactive coverage pass~~
+   Done:
+   - Audited existing integration tests to prevent duplicate coverage
+   - Added Redis readiness failure integration test (`GET /ready` returns 503 `{ status: 'not_ready' }`)
+   - Added invalid & oversized `X-Request-ID` fallback validation tests (returns generated UUID)
+   - Added HTTP request timeout integration test (`createTimeoutMiddleware` returning 503 `{ error: 'Request timeout' }`)
+   - Added rate limiter fail-open integration test when Redis eval operation fails
+   - Added invalid custom alias validation integration tests (short, long, non-alphanumeric -> 400 Bad Request)
+   - Added invalid pagination parameters validation integration tests (`page`, `limit` -> 400 Bad Request)
+   - Added invalid / past expiration validation integration tests (`expiresAt` -> 400 Bad Request)
+   - Preserved activeDb safety guard (`url_shortener_test`), table truncation cascade, and Redis cleanup safety
 
 14. Docker and CI/CD
 
@@ -1078,7 +1088,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Testing / retroactive coverage pass
+Docker and CI/CD
 ```
 
 ---

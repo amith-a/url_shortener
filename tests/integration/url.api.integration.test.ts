@@ -179,6 +179,64 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
       expect(response.body).toHaveProperty('expiresAt');
       expect(response.body.expiresAt).not.toBeNull();
     });
+
+    it('should return 400 Bad Request for invalid customAlias formats (too short, too long, non-alphanumeric)', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-inval-alias@example.com',
+        'Invalid Alias User'
+      );
+      const invalidAliases = [
+        'ab',
+        'a'.repeat(51),
+        'abc-123',
+        'abc_123',
+        'abc 123',
+        'abc/123',
+        'abc@123',
+      ];
+
+      for (const customAlias of invalidAliases) {
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .set('Cookie', cookies)
+          .send({
+            originalUrl: 'https://example.com/invalid-alias-target',
+            customAlias,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('message', 'Validation failed');
+        expect(response.body.errors).toHaveProperty('customAlias');
+      }
+    });
+
+    it('should return 400 Bad Request for invalid or past expiresAt values', async () => {
+      const { cookies } = await registerAndLogin(
+        'user-inval-exp@example.com',
+        'Invalid Exp User'
+      );
+      const invalidExpirations = [
+        'not-a-date-string',
+        '2026-12-31T23:59:59',
+        '2020-01-01T00:00:00+00:00',
+      ];
+
+      for (const expiresAt of invalidExpirations) {
+        const response = await request(app)
+          .post('/api/v1/urls')
+          .set('Cookie', cookies)
+          .send({
+            originalUrl: 'https://example.com/invalid-exp-target',
+            expiresAt,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('message', 'Validation failed');
+        expect(response.body.errors).toHaveProperty('expiresAt');
+      }
+    });
   });
 
   describe('DELETE /api/v1/urls/:id (Protected Route & Ownership & Redis Invalidation)', () => {
@@ -404,6 +462,32 @@ describe('API Integration Tests (Real PostgreSQL Test DB & Real Redis)', () => {
           totalPages: 1,
         },
       });
+    });
+
+    it('should return 400 Bad Request for invalid pagination query parameters', async () => {
+      const userA = await registerAndLogin(
+        'user_inval_page@example.com',
+        'Invalid Page User'
+      );
+      const invalidQueries = [
+        'page=0',
+        'page=-1',
+        'page=abc',
+        'limit=0',
+        'limit=-1',
+        'limit=abc',
+        'limit=101',
+      ];
+
+      for (const query of invalidQueries) {
+        const response = await request(app)
+          .get(`/api/v1/urls?${query}`)
+          .set('Cookie', userA.cookies);
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('success', false);
+        expect(response.body).toHaveProperty('message', 'Validation failed');
+      }
     });
   });
 

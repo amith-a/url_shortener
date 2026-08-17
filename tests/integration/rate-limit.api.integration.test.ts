@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import app from '../../src/app';
 import pool from '../../src/config/database';
@@ -129,6 +129,28 @@ describe('Rate Limiting Integration Tests (Real Redis & Real DB)', () => {
         .send({ originalUrl: 'https://example.com/allowed-b' });
 
       expect(resB.status).toBe(201);
+    });
+
+    it('should fail open and allow request when Redis eval fails', async () => {
+      const evalSpy = vi
+        .spyOn(redis, 'eval')
+        .mockRejectedValueOnce(new Error('Simulated Redis eval failure'));
+
+      const { cookies } = await registerAndLogin(
+        'rl_failopen@example.com',
+        'FailOpen User'
+      );
+
+      const res = await request(app)
+        .post('/api/v1/urls')
+        .set('Cookie', cookies)
+        .send({ originalUrl: 'https://example.com/rl-fail-open-test' });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty('shortCode');
+      expect(res.headers['x-ratelimit-limit']).toBeDefined();
+
+      evalSpy.mockRestore();
     });
   });
 
