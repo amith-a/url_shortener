@@ -90,4 +90,40 @@ describe('Environment Configuration', () => {
       ).toThrow();
     });
   });
+
+  describe('REQUEST_TIMEOUT_MS and SHUTDOWN_TIMEOUT_MS validation', () => {
+    it('should accept valid custom positive numbers and numeric strings', () => {
+      const res = envSchema.parse({
+        ...validEnvFixture,
+        REQUEST_TIMEOUT_MS: '5000',
+        SHUTDOWN_TIMEOUT_MS: '15000',
+      });
+      expect(res.REQUEST_TIMEOUT_MS).toBe(5000);
+      expect(res.SHUTDOWN_TIMEOUT_MS).toBe(15000);
+    });
+
+    it('should reject zero, negative, or non-numeric timeout values', () => {
+      expect(() =>
+        envSchema.parse({
+          ...validEnvFixture,
+          REQUEST_TIMEOUT_MS: 0,
+        })
+      ).toThrow();
+
+      expect(() =>
+        envSchema.parse({
+          ...validEnvFixture,
+          SHUTDOWN_TIMEOUT_MS: -100,
+        })
+      ).toThrow();
+
+      expect(() =>
+        envSchema.parse({
+          ...validEnvFixture,
+          REQUEST_TIMEOUT_MS: 'invalid-number',
+        })
+      ).toThrow();
+    });
+  });
 });
+

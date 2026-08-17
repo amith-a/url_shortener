@@ -58,7 +58,47 @@ describe('url.validator', () => {
         expect(result.success).toBe(false);
       }
     });
+
+    it('should validate valid custom alias formats and reject invalid ones', () => {
+      const validRes = urlSchema.safeParse({
+        originalUrl: 'https://example.com',
+        customAlias: 'myAlias123',
+      });
+      expect(validRes.success).toBe(true);
+
+      const invalidAliases = ['ab', 'a'.repeat(51), 'my-alias', 'my_alias', 'my alias'];
+      for (const customAlias of invalidAliases) {
+        const result = urlSchema.safeParse({
+          originalUrl: 'https://example.com',
+          customAlias,
+        });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it('should validate ISO 8601 future expiration with timezone offset and reject invalid formats', () => {
+      const futureDate = new Date(Date.now() + 86400000).toISOString();
+      const validRes = urlSchema.safeParse({
+        originalUrl: 'https://example.com',
+        expiresAt: futureDate,
+      });
+      expect(validRes.success).toBe(true);
+
+      const invalidExpirations = [
+        'invalid-date',
+        '2026-12-31T23:59:59', // missing timezone offset
+        '2020-01-01T00:00:00+00:00', // past date
+      ];
+      for (const expiresAt of invalidExpirations) {
+        const result = urlSchema.safeParse({
+          originalUrl: 'https://example.com',
+          expiresAt,
+        });
+        expect(result.success).toBe(false);
+      }
+    });
   });
+
 
   describe('getUrlSchema', () => {
     it('should validate valid short codes', () => {
