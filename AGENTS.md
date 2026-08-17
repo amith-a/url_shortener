@@ -551,7 +551,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-16, after Production Hardening implementation._
+_Last updated: 2026-08-17, after Production Hardening and environment configuration test refactoring._
 
 This section is a snapshot of what is actually implemented.
 
@@ -905,7 +905,7 @@ Key details:
 
 Implemented production readiness and operational safeguards:
 
-- **Centralized Configuration Validation**: Extended `src/config/env.ts` to validate `CORS_ALLOWED_ORIGINS`, `REQUEST_TIMEOUT_MS` (default 10s), and `SHUTDOWN_TIMEOUT_MS` (default 10s). Replaced all direct `process.env` reads across application code.
+- **Centralized Configuration Validation**: Extended `src/config/env.ts` to export `envSchema` and validate `CORS_ALLOWED_ORIGINS`, `REQUEST_TIMEOUT_MS` (default 10s), and `SHUTDOWN_TIMEOUT_MS` (default 10s). Replaced all direct `process.env` reads across application code.
 - **Liveness Endpoint (`GET /health`)**: Lightweight process health check returning `200 OK` `{ "status": "ok" }`. Unauthenticated, un-rate-limited, no database or Redis queries.
 - **Readiness Endpoint (`GET /ready`)**: `HealthService` checks PostgreSQL pool query (`SELECT 1`) and Redis client ping (`redis.ping()`) reusing existing connection pools. Returns `200 OK` `{ "status": "ready" }` when healthy or `503 Service Unavailable` `{ "status": "not_ready" }` on dependency failure. Unauthenticated, un-rate-limited.
 - **Health Architecture**: `HealthService` → `HealthController` → `health.bootstrap.ts` → `health.routes.ts` mounted in `src/app.ts`. Controllers remain HTTP-only without direct database/Redis access.
@@ -915,7 +915,7 @@ Implemented production readiness and operational safeguards:
 - **Explicit CORS**: `cors()` middleware configured with explicit allowed origins parsed from `env.CORS_ALLOWED_ORIGINS` (comma-separated origins). Production wildcard `*` is rejected by Zod schema validation. Configured with `credentials: true` compatible with Better Auth sessions.
 - **Graceful HTTP Server Shutdown**: `gracefulShutdown()` in `src/server.ts` handles `SIGTERM` and `SIGINT` with an atomic `isShuttingDown` guard. Sequence: stops accepting new connections via `server.close()`, waits for in-flight HTTP requests to drain (or bounded `env.SHUTDOWN_TIMEOUT_MS` fallback calling `server.closeAllConnections()`), drains PostgreSQL `pool.end()`, closes Redis `redis.quit()`, and exits cleanly.
 - **Worker Isolation**: Dedicated worker entry point `src/worker.ts` remains completely isolated as a separate process from `src/server.ts`.
-- **Test Coverage**: Unit test suites (`env.test.ts`, `health.service.test.ts`, `health.controller.test.ts`, `request-id.middleware.test.ts`, `timeout.middleware.test.ts`, `shutdown.test.ts`) and full integration test suite (`tests/integration/health.api.integration.test.ts`).
+- **Test Coverage**: Unit test suites (`env.test.ts` testing imported `envSchema` directly, `health.service.test.ts`, `health.controller.test.ts`, `request-id.middleware.test.ts`, `timeout.middleware.test.ts`, `shutdown.test.ts`) and full integration test suite (`tests/integration/health.api.integration.test.ts`).
 
 ---
 

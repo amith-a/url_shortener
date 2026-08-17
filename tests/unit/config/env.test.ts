@@ -1,58 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { env } from '../../../src/config/env';
-import { z } from 'zod';
+import { env, envSchema } from '../../../src/config/env';
 
-// We import/create a test schema to validate CORS_ALLOWED_ORIGINS logic directly
-const corsSchema = z
-  .object({
-    NODE_ENV: z
-      .enum(['development', 'test', 'production'])
-      .default('development'),
-    CORS_ALLOWED_ORIGINS: z
-      .string()
-      .transform((val) =>
-        val
-          .split(',')
-          .map((origin) => origin.trim())
-          .filter((origin) => origin.length > 0)
-      )
-      .refine((origins) => origins.length > 0, {
-        message: 'CORS_ALLOWED_ORIGINS must contain at least one origin',
-      })
-      .refine(
-        (origins) =>
-          origins.every((origin) => {
-            if (origin === '*') return true;
-            try {
-              const parsed = new URL(origin);
-              return (
-                (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-                parsed.origin === origin
-              );
-            } catch {
-              return false;
-            }
-          }),
-        {
-          message: 'All CORS origins must be valid HTTP/HTTPS origin URLs or "*"',
-        }
-      ),
-  })
-  .refine(
-    (data) => {
-      if (
-        data.NODE_ENV === 'production' &&
-        data.CORS_ALLOWED_ORIGINS.includes('*')
-      ) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'Wildcard CORS origin (*) is not allowed in production',
-      path: ['CORS_ALLOWED_ORIGINS'],
-    }
-  );
+const validEnvFixture = {
+  DATABASE_HOST: 'localhost',
+  POSTGRES_DB: 'test_db',
+  POSTGRES_USER: 'postgres',
+  POSTGRES_PASSWORD: 'password',
+  DATABASE_URL: 'postgres://postgres:password@localhost:5432/test_db',
+  BETTER_AUTH_SECRET: '01234567890123456789012345678901',
+};
 
 describe('Environment Configuration', () => {
   it('should export validated env object with expected defaults', () => {
@@ -65,7 +21,8 @@ describe('Environment Configuration', () => {
 
   describe('CORS_ALLOWED_ORIGINS validation', () => {
     it('should accept a valid HTTP origin', () => {
-      const res = corsSchema.parse({
+      const res = envSchema.parse({
+        ...validEnvFixture,
         NODE_ENV: 'development',
         CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
       });
@@ -73,7 +30,8 @@ describe('Environment Configuration', () => {
     });
 
     it('should accept a valid HTTPS origin', () => {
-      const res = corsSchema.parse({
+      const res = envSchema.parse({
+        ...validEnvFixture,
         NODE_ENV: 'development',
         CORS_ALLOWED_ORIGINS: 'https://example.com',
       });
@@ -81,7 +39,8 @@ describe('Environment Configuration', () => {
     });
 
     it('should accept multiple valid origins', () => {
-      const res = corsSchema.parse({
+      const res = envSchema.parse({
+        ...validEnvFixture,
         NODE_ENV: 'development',
         CORS_ALLOWED_ORIGINS: 'http://localhost:3000, https://app.example.com',
       });
@@ -93,7 +52,8 @@ describe('Environment Configuration', () => {
 
     it('should reject malformed origin', () => {
       expect(() =>
-        corsSchema.parse({
+        envSchema.parse({
+          ...validEnvFixture,
           NODE_ENV: 'development',
           CORS_ALLOWED_ORIGINS: 'not-a-valid-url',
         })
@@ -102,7 +62,8 @@ describe('Environment Configuration', () => {
 
     it('should reject origin with invalid protocol (e.g. ftp://)', () => {
       expect(() =>
-        corsSchema.parse({
+        envSchema.parse({
+          ...validEnvFixture,
           NODE_ENV: 'development',
           CORS_ALLOWED_ORIGINS: 'ftp://example.com',
         })
@@ -111,7 +72,8 @@ describe('Environment Configuration', () => {
 
     it('should reject wildcard origin (*) in production', () => {
       expect(() =>
-        corsSchema.parse({
+        envSchema.parse({
+          ...validEnvFixture,
           NODE_ENV: 'production',
           CORS_ALLOWED_ORIGINS: '*',
         })
@@ -120,7 +82,8 @@ describe('Environment Configuration', () => {
 
     it('should reject empty origin list', () => {
       expect(() =>
-        corsSchema.parse({
+        envSchema.parse({
+          ...validEnvFixture,
           NODE_ENV: 'development',
           CORS_ALLOWED_ORIGINS: '   ,  ',
         })
