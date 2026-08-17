@@ -1,6 +1,6 @@
 # URL Shortener API
 
-A production-style URL Shortener backend built with **Node.js**, **TypeScript**, **Express**, and **PostgreSQL**. Designed with a clean layered architecture, repository interfaces, environment validation via **Zod**, structured logging with **Pino**, and database migrations using **node-pg-migrate**.
+A production-style URL Shortener backend built with **Node.js**, **TypeScript**, **Express**, **PostgreSQL**, and **Redis**. Designed with a clean layered architecture, repository interfaces, atomic Redis-backed rate limiting, BullMQ background cleanup workers, Zod configuration validation, structured Pino logging, and database migrations via **node-pg-migrate**.
 
 ---
 
@@ -11,8 +11,13 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 - **Custom Aliases**: Optional user-defined alphanumeric short codes (3–50 chars) with DB-enforced uniqueness (`409 Conflict`).
 - **URL Expiration**: Optional expiration timestamp (`expiresAt`) with ISO 8601 timezone validation (`410 Gone` on expiry).
 - **SSRF Guard**: Strict URL validation blocking private, loopback, and link-local hostnames (`localhost`, `127.0.0.1`, `169.254.169.254`).
+- **Redis Caching**: High-performance Cache-Aside pattern for short URL resolution (`url:{shortCode}`) with effective TTL capped by URL expiration.
+- **Atomic Rate Limiting**: Redis Lua-backed sliding window rate limiter (`RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_SECONDS`) with fail-open resilience.
+- **Click Analytics**: Privacy-focused click tracking (`url_click_events`) recorded on both cache hits and misses, accessible via owner-isolated analytics endpoint (`GET /api/v1/urls/:id/analytics`).
+- **Background Cleanup Worker**: Asynchronous BullMQ + Redis background worker process (`src/worker.ts`) for periodic removal of expired URLs and cache eviction.
+- **Production Readiness & Observability**: Dedicated health check endpoints (`/health` process liveness, `/ready` DB & Redis readiness), request correlation IDs (`X-Request-ID`), Helmet security headers, timeout protection, and graceful server shutdown.
 - **Resilient Startup**: DB connection retries with exponential backoff (5 attempts) for seamless Docker Compose startup.
-- **Repository Abstraction**: Interface-backed dependency injection (`IUrlRepository`) decoupling services from database queries.
+- **Repository Abstraction**: Interface-backed dependency injection (`IUrlRepository`, `IUrlAnalyticsRepository`) decoupling business services from PostgreSQL queries.
 
 ---
 
@@ -26,6 +31,8 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 | **Auth** | Better Auth |
 | **Database** | PostgreSQL |
 | **Driver** | `pg` |
+| **Cache & Store** | Redis (`ioredis`) |
+| **Background Jobs** | BullMQ |
 | **Migrations** | `node-pg-migrate` |
 | **Validation** | Zod |
 | **Logging** | Pino & Pino HTTP |
@@ -46,13 +53,16 @@ Client
   │
   ├───────────────────────────────┐
   ▼                               ▼
-/api/auth/*                     /api/v1/*
+/api/auth/*                     /api/v1/*  /health  /ready
   │                               │
   ▼                               ▼
 Better Auth                    Controllers (HTTP parsing & formatting)
   │                               │
   ▼                               ▼
-Database (user, session, etc.)  Services ──► Repository (IUrlRepository) ──► PostgreSQL
+Database (user, session, etc.)  Services ──► Cache (Redis) & Repositories ──► PostgreSQL
+                                  │
+                                  ▼
+                              Background Worker (BullMQ + Redis)
 ```
 
 ---
@@ -64,23 +74,25 @@ Database (user, session, etc.)  Services ──► Repository (IUrlRepository) �
 ├── db/
 │   └── migrations/        # node-pg-migrate SQL/TypeScript migration files
 ├── src/
-│   ├── bootstrap/         # Dependency injection wiring (IUrlRepository -> UrlService -> UrlController)
-│   ├── config/            # Database pool, Pino logger, Zod env validation & Better Auth config (auth.ts)
-│   ├── controllers/       # HTTP request handlers
+│   ├── bootstrap/         # Dependency injection wiring (repositories -> services -> controllers)
+│   ├── config/            # Database pool, Redis client, Pino logger, Zod env validation & Better Auth config
+│   ├── controllers/       # HTTP request handlers (UrlController, HealthController, UrlAnalyticsController)
 │   ├── dto/               # Data Transfer Objects
-│   ├── errors/            # Custom domain & HTTP error classes (AppError, NotFoundError, ConflictError, GoneError)
-│   ├── middleware/        # Express custom middleware (error handler, request validation)
-│   ├── repositories/      # Database interaction layer & interfaces (IUrlRepository, SQL queries)
-│   ├── routes/            # API endpoint definitions
-│   ├── services/          # Business logic layer (UrlService)
-│   ├── utils/             # Helper utilities (short code generator)
+│   ├── errors/            # Custom domain & HTTP error classes (AppError, NotFoundError, ConflictError, GoneError, etc.)
+│   ├── jobs/              # BullMQ background job queues & workers (url-cleanup.queue.ts, url-cleanup.worker.ts)
+│   ├── middleware/        # Express custom middleware (auth, rate limiting, request ID, timeout, error handler)
+│   ├── repositories/      # Database interaction layer & interfaces (IUrlRepository, IUrlAnalyticsRepository)
+│   ├── routes/            # API endpoint definitions (url.routes.ts, health.routes.ts)
+│   ├── services/          # Business logic layer (UrlService, UrlCacheService, RateLimitService, UrlCleanupService, HealthService)
+│   ├── utils/             # Helper utilities (short code generator, SSRF guards)
 │   ├── validators/        # Zod request validation schemas
-│   ├── app.ts             # Express application configuration (Better Auth handler mounted at /api/auth/*)
-│   └── server.ts          # Application entry point & DB connection retry bootstrap
+│   ├── app.ts             # Express application setup (middleware, Better Auth handler, routes)
+│   ├── server.ts          # Application HTTP server entry point & graceful shutdown
+│   └── worker.ts          # Background job worker entry point
 ├── tests/
-│   ├── unit/              # Unit tests for services, repositories, validators, errors & middleware
-│   └── integration/       # API integration tests using Supertest (URL and Auth endpoints)
-├── docker-compose.yml     # Local PostgreSQL database container setup
+│   ├── unit/              # Unit tests for services, repositories, validators, errors, jobs & middleware
+│   └── integration/       # API integration tests using Supertest (URL, Auth, Cleanup & Health endpoints)
+├── docker-compose.yml     # Local PostgreSQL & Redis database container setup
 ├── .env.example           # Template for environment variables
 ├── eslint.config.mjs      # ESLint configuration
 ├── tsconfig.json          # TypeScript compiler options
@@ -118,19 +130,34 @@ Ensure your `.env` variables match your local environment:
 PORT=3000
 LOG_LEVEL=debug
 NODE_ENV=development
+
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
-POSTGRES_DB=url_shortener
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
+POSTGRES_DB=url_shortener
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/url_shortener
+
 BETTER_AUTH_SECRET=replace-with-a-secure-secret-at-least-32-chars-long
 BETTER_AUTH_URL=http://localhost:3000
+
+REDIS_URL=redis://localhost:6379/0
+REDIS_URL_TTL=3600
+
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_SECONDS=60
+
+URL_CLEANUP_INTERVAL_SECONDS=3600
+
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+REQUEST_TIMEOUT_MS=10000
+SHUTDOWN_TIMEOUT_MS=10000
 ```
 
-### 3. Start Database
+### 3. Start Database & Redis
 
-Start the PostgreSQL database container using Docker Compose:
+Start the PostgreSQL and Redis containers using Docker Compose:
 
 ```bash
 docker compose up -d
@@ -144,12 +171,18 @@ Execute database migrations to create the required tables and indexes:
 npm run migrate:up
 ```
 
-### 5. Start Development Server
+### 5. Start Development Server & Worker
 
-Run the server with live reload:
+Run the HTTP server with live reload:
 
 ```bash
 npm run dev
+```
+
+In a separate terminal, optionally start the background worker process:
+
+```bash
+npm run dev:worker
 ```
 
 The server will start listening at `http://localhost:3000`.
@@ -170,6 +203,9 @@ npm run test:unit
 # Run API integration tests only
 npm run test:integration
 
+# Run TypeScript type check
+npm run typecheck
+
 # Run tests with V8 code coverage report
 npm run test:coverage
 ```
@@ -180,9 +216,11 @@ npm run test:coverage
 
 | Command | Description |
 | :--- | :--- |
-| `npm run dev` | Starts dev server using `tsx` with hot reload |
+| `npm run dev` | Starts HTTP dev server using `tsx` with hot reload |
+| `npm run dev:worker` | Starts background cleanup worker process using `tsx` with hot reload |
 | `npm run build` | Compiles TypeScript code to `./dist` |
-| `npm run start` | Runs production build from `./dist/server.js` |
+| `npm run start` | Runs production HTTP server build from `./dist/server.js` |
+| `npm run start:worker` | Runs production worker build from `./dist/worker.js` |
 | `npm run migrate:up` | Runs all pending database migrations |
 | `npm run migrate:down` | Rolls back the latest applied migration |
 | `npm run migrate:create <name>` | Creates a new TypeScript migration file |
@@ -190,13 +228,16 @@ npm run test:coverage
 | `npm run test:unit` | Runs unit tests only (`tests/unit`) |
 | `npm run test:integration` | Runs API integration tests only (`tests/integration`) |
 | `npm run test:coverage` | Generates V8 code coverage report |
+| `npm run typecheck` | Runs TypeScript compiler checks without emitting output |
 | `npm run lint` | Runs ESLint type and style checks |
 | `npm run lint:fix` | Automatically fixes ESLint warnings and errors |
 | `npm run format` | Formats code with Prettier |
 
 ---
 
-## 🗄️ Database Schema (`urls`)
+## 🗄️ Database Schema
+
+### 1. `urls` Table
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
@@ -207,23 +248,37 @@ npm run test:coverage
 | `expires_at` | `TIMESTAMPTZ` | `NULL` | Optional expiration timestamp (`NULL` = no expiration) |
 | `user_id` | `TEXT` | `NULL, FK -> "user"("id")` | Owner user ID (`NULL` for pre-auth URLs) |
 
-> Additional tables managed by Better Auth: `user`, `session`, `account`, `verification`.
+### 2. `url_click_events` Table
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY` | Unique event identifier (`gen_random_uuid()`) |
+| `url_id` | `UUID` | `NOT NULL, FK -> urls(id) ON DELETE CASCADE` | Associated short URL ID |
+| `clicked_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | Timestamp of click event |
+
+> Additional authentication tables managed by Better Auth: `user`, `session`, `account`, `verification`.
 
 ---
 
 ## 🛣️ API Endpoints
 
+### Health & Observability
+* `GET /health` - Process liveness check (`200 OK` `{ "status": "ok" }`).
+* `GET /ready` - Dependency readiness check (`200 OK` `{ "status": "ready" }` when PostgreSQL and Redis are healthy, or `503 Service Unavailable`).
+
+---
+
 ### Authentication (`/api/auth/*`)
 * `POST /api/auth/sign-up/email` - Register a new user with email, password, and name.
 * `POST /api/auth/sign-in/email` - Authenticate existing user credentials and receive session cookie.
-* `GET /api/auth/get-session` - Retrieve the current authenticated user and session details.
+* `GET /api/auth/get-session` - Retrieve current authenticated user and session details.
 * `POST /api/auth/sign-out` - Terminate active authentication session.
 
 ---
 
 ### URL Operations (`/api/v1/urls/*`)
 
-#### 1. Create Short URL *(Authentication Required)*
+#### 1. Create Short URL *(Authentication Required & Rate Limited)*
 `POST /api/v1/urls`
 
 **Request Body**:
@@ -244,6 +299,7 @@ npm run test:coverage
 * `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
 * `400 Bad Request`: Validation failure (malformed URL, invalid alias, past date, or missing timezone offset).
 * `409 Conflict`: Custom alias is already in use.
+* `429 Too Many Requests`: Exceeded rate limit quota.
 
 ---
 
@@ -281,30 +337,40 @@ npm run test:coverage
 
 ---
 
-#### 3. Redirect to Original URL *(Public & Redis Cached)*
+#### 3. Redirect to Original URL *(Public, Rate Limited & Redis Cached)*
 `GET /api/v1/urls/:shortCode`
 
 **Cache Strategy**:
-Uses Cache-Aside via Redis (`url:{shortCode}`). On cache MISS, populates Redis with `effectiveTTL = min(REDIS_URL_TTL, remainingSeconds)`. Deletion (`DELETE /api/v1/urls/:id`) invalidates the Redis key.
+Uses Cache-Aside via Redis (`url:{shortCode}`). On cache MISS, populates Redis with `effectiveTTL = min(REDIS_URL_TTL, remainingSeconds)`. Deletion (`DELETE /api/v1/urls/:id`) or background cleanup invalidates the Redis key. Also records a click event asynchronously in `url_click_events`.
 
 **Responses**:
 * `302 Found`: Redirects to original URL with `Cache-Control: no-cache, no-store, must-revalidate`.
 * `404 Not Found`: Short URL does not exist.
 * `410 Gone`: URL has expired (`expiresAt <= NOW()`).
+* `429 Too Many Requests`: Exceeded rate limit quota.
 
 ---
 
-#### 4. Delete Short URL *(Authentication Required)*
-`DELETE /api/v1/urls/:id`
+#### 4. Get URL Analytics *(Authentication Required)*
+`GET /api/v1/urls/:id/analytics`
 
 **Responses**:
-* `204 No Content`: Short URL deleted successfully by the owner.
+* `200 OK`: Returns total click count for a short URL owned by the authenticated user.
+  ```json
+  {
+    "urlId": "uuid-1",
+    "totalClicks": 42
+  }
+  ```
 * `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
 * `404 Not Found`: Short URL does not exist or is owned by another user.
 
-
-
-
-
 ---
 
+#### 5. Delete Short URL *(Authentication Required)*
+`DELETE /api/v1/urls/:id`
+
+**Responses**:
+* `204 No Content`: Short URL deleted successfully by the owner (also invalidates Redis cache and cascades click event deletion).
+* `401 Unauthorized`: Unauthenticated request (missing/invalid Better Auth session).
+* `404 Not Found`: Short URL does not exist or is owned by another user.
