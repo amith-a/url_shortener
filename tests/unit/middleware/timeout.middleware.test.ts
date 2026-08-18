@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { createTimeoutMiddleware } from '../../../src/middleware/timeout.middleware';
+import { createTimeoutMiddleware } from '../../../src/middleware/timeout.middleware.js';
 
 describe('createTimeoutMiddleware', () => {
   let mockReq: Partial<Request>;

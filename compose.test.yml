@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    env_file:
+      - .env.test
+    environment:
+      POSTGRES_DB: url_shortener
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d url_shortener']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test-db-init:
+    image: postgres:17
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        printf '%s\n' \
+          "SELECT 'CREATE DATABASE url_shortener_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'url_shortener_test')\gexec" \
+          | psql -v ON_ERROR_STOP=1 -h postgres -p 5432 -U postgres -d postgres

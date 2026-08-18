@@ -2,14 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { toNodeHandler } from 'better-auth/node';
-import { auth } from './config/auth';
-import { env } from './config/env';
-import { errorHandler } from './middleware/error.middleware';
-import { httpLogger } from './middleware/http-logger.middleware';
-import { requestIdMiddleware } from './middleware/request-id.middleware';
-import { createTimeoutMiddleware } from './middleware/timeout.middleware';
-import healthRoutes from './routes/health.routes';
-import urlRoutes from './routes/url.routes';
+import { auth } from './config/auth.js';
+import { env } from './config/env.js';
+import { errorHandler } from './middleware/error.middleware.js';
+import { httpLogger } from './middleware/http-logger.middleware.js';
+import { requestIdMiddleware } from './middleware/request-id.middleware.js';
+import { createTimeoutMiddleware } from './middleware/timeout.middleware.js';
+import healthRoutes from './routes/health.routes.js';
+import urlRoutes from './routes/url.routes.js';
 
 const app = express();
 

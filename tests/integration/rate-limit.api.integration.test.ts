@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
-import app from '../../src/app';
-import pool from '../../src/config/database';
-import { redis } from '../../src/config/redis';
-import { cacheService } from '../../src/bootstrap/url.bootstrap';
+import app from '../../src/app.js';
+import pool from '../../src/config/database.js';
+import { redis } from '../../src/config/redis.js';
+import { cacheService } from '../../src/bootstrap/url.bootstrap.js';
 
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];

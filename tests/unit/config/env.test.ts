@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { env, envSchema } from '../../../src/config/env';
+import { env, envSchema } from '../../../src/config/env.js';
 
 const validEnvFixture = {
   DATABASE_HOST: 'localhost',

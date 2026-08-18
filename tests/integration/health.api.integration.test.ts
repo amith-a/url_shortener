@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import app from '../../src/app';
-import pool from '../../src/config/database';
-import { redis } from '../../src/config/redis';
-import { createTimeoutMiddleware } from '../../src/middleware/timeout.middleware';
+import app from '../../src/app.js';
+import pool from '../../src/config/database.js';
+import { redis } from '../../src/config/redis.js';
+import { createTimeoutMiddleware } from '../../src/middleware/timeout.middleware.js';
 
 describe('Health & Hardening API Integration Tests', () => {
   describe('GET /health', () => {

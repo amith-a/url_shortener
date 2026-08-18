@@ -1,7 +1,7 @@
-import type { IUrlAnalyticsRepository } from '../repositories/interfaces/url-analytics.repository.interface';
-import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
-import { UrlAnalyticsDto } from '../dto/url-analytics.dto';
-import { NotFoundError } from '../errors/not-found.error';
+import type { IUrlAnalyticsRepository } from '../repositories/interfaces/url-analytics.repository.interface.js';
+import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface.js';
+import { UrlAnalyticsDto } from '../dto/url-analytics.dto.js';
+import { NotFoundError } from '../errors/not-found.error.js';
 
 export class UrlAnalyticsService {
   constructor(

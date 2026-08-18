@@ -4,16 +4,16 @@ import {
   analyticsController,
   controller,
   rateLimitService,
-} from '../bootstrap/url.bootstrap';
-import { validate } from '../middleware/validate.middleware';
-import { createRateLimiter } from '../middleware/rate-limit.middleware';
+} from '../bootstrap/url.bootstrap.js';
+import { validate } from '../middleware/validate.middleware.js';
+import { createRateLimiter } from '../middleware/rate-limit.middleware.js';
 import {
   getUrlSchema,
   listUrlsQuerySchema,
   urlIdParamSchema,
   urlSchema,
-} from '../validators/url.validator';
-import { requireAuth } from '../middleware/auth.middleware';
+} from '../validators/url.validator.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
 

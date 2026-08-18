@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
 
-import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto';
-import type { UrlService } from '../services/url.service';
-import { GetUrlRequestDto } from '../dto/get-url-request.dto';
-import { ListUrlsQueryDto } from '../dto/list-urls-query.dto';
+import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto.js';
+import type { UrlService } from '../services/url.service.js';
+import { GetUrlRequestDto } from '../dto/get-url-request.dto.js';
+import { ListUrlsQueryDto } from '../dto/list-urls-query.dto.js';
 
 export class UrlController {
   constructor(private readonly service: UrlService) {}

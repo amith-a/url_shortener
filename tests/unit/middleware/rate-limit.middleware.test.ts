@@ -1,8 +1,8 @@
 import '../../../src/types/express.d.ts';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { createRateLimiter } from '../../../src/middleware/rate-limit.middleware';
-import type { RateLimitService } from '../../../src/services/rate-limit.service';
+import { createRateLimiter } from '../../../src/middleware/rate-limit.middleware.js';
+import type { RateLimitService } from '../../../src/services/rate-limit.service.js';
 
 describe('rateLimitMiddleware', () => {
   let mockService: {

@@ -1,13 +1,13 @@
-import { cleanupService } from './bootstrap/url.bootstrap';
+import { cleanupService } from './bootstrap/url.bootstrap.js';
 import {
   createUrlCleanupQueue,
   setupUrlCleanupSchedule,
-} from './jobs/url-cleanup.queue';
-import { createUrlCleanupWorker } from './jobs/url-cleanup.worker';
-import pool from './config/database';
-import { connectWithRetry } from './config/database-connection';
-import { logger } from './config/logger';
-import { env } from './config/env';
+} from './jobs/url-cleanup.queue.js';
+import { createUrlCleanupWorker } from './jobs/url-cleanup.worker.js';
+import pool from './config/database.js';
+import { connectWithRetry } from './config/database-connection.js';
+import { logger } from './config/logger.js';
+import { env } from './config/env.js';
 
 export async function startWorker() {
   logger.info('Initializing background worker service...');

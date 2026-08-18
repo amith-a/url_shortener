@@ -1,13 +1,13 @@
-import { UrlController } from '../controllers/url.controller';
-import { UrlAnalyticsController } from '../controllers/url-analytics.controller';
-import { UrlRepository } from '../repositories/url.repository';
-import { UrlAnalyticsRepository } from '../repositories/url-analytics.repository';
-import { UrlService } from '../services/url.service';
-import { UrlAnalyticsService } from '../services/url-analytics.service';
-import { UrlCacheService } from '../services/url-cache.service';
-import { UrlCleanupService } from '../services/url-cleanup.service';
-import { RateLimitService } from '../services/rate-limit.service';
-import { redis } from '../config/redis';
+import { UrlController } from '../controllers/url.controller.js';
+import { UrlAnalyticsController } from '../controllers/url-analytics.controller.js';
+import { UrlRepository } from '../repositories/url.repository.js';
+import { UrlAnalyticsRepository } from '../repositories/url-analytics.repository.js';
+import { UrlService } from '../services/url.service.js';
+import { UrlAnalyticsService } from '../services/url-analytics.service.js';
+import { UrlCacheService } from '../services/url-cache.service.js';
+import { UrlCleanupService } from '../services/url-cleanup.service.js';
+import { RateLimitService } from '../services/rate-limit.service.js';
+import { redis } from '../config/redis.js';
 
 const repository = new UrlRepository();
 const analyticsRepository = new UrlAnalyticsRepository();

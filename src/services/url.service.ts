@@ -1,19 +1,19 @@
-import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto';
-import { UrlDto } from '../dto/url.dto';
-import { PaginatedResponseDto } from '../dto/paginated-response.dto';
+import { CreateShortUrlRequestDto } from '../dto/create-short-url-request.dto.js';
+import { UrlDto } from '../dto/url.dto.js';
+import { PaginatedResponseDto } from '../dto/paginated-response.dto.js';
 import { randomUUID } from 'node:crypto';
-import { generateShortCode } from '../utils/short-code';
-import { CreateUrlDto } from '../dto/create-url.dto';
-import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
-import type { UrlCacheService } from './url-cache.service';
-import { NotFoundError } from '../errors/not-found.error';
-import { ConflictError } from '../errors/conflict.error';
-import { GoneError } from '../errors/gone.error';
-import AppError from '../errors/app-error';
-import { logger } from '../config/logger';
-import { env } from '../config/env';
+import { generateShortCode } from '../utils/short-code.js';
+import { CreateUrlDto } from '../dto/create-url.dto.js';
+import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface.js';
+import type { UrlCacheService } from './url-cache.service.js';
+import { NotFoundError } from '../errors/not-found.error.js';
+import { ConflictError } from '../errors/conflict.error.js';
+import { GoneError } from '../errors/gone.error.js';
+import AppError from '../errors/app-error.js';
+import { logger } from '../config/logger.js';
+import { env } from '../config/env.js';
 
-import type { UrlAnalyticsService } from './url-analytics.service';
+import type { UrlAnalyticsService } from './url-analytics.service.js';
 
 const PG_UNIQUE_VIOLATION = '23505';
 const MAX_ATTEMPTS = 5;

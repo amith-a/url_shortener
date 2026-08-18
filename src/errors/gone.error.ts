@@ -1,4 +1,4 @@
-import AppError from './app-error';
+import AppError from './app-error.js';
 
 export class GoneError extends AppError {
   constructor(message = 'URL has expired') {

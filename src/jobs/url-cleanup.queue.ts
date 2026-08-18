@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
-import { bullRedisConnection } from '../config/redis';
-import { env } from '../config/env';
-import { logger } from '../config/logger';
+import { bullRedisConnection } from '../config/redis.js';
+import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 
 export const URL_CLEANUP_QUEUE_NAME = 'url-cleanup';
 export const URL_CLEANUP_SCHEDULER_ID = 'periodic-expired-url-cleanup';

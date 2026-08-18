@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import pool from '../../../src/config/database';
-import { UrlRepository } from '../../../src/repositories/url.repository';
-import AppError from '../../../src/errors/app-error';
+import pool from '../../../src/config/database.js';
+import { UrlRepository } from '../../../src/repositories/url.repository.js';
+import AppError from '../../../src/errors/app-error.js';
 import { QueryResult } from 'pg';
-import { UrlRow } from '../../../src/repositories/types/url.row';
+import { UrlRow } from '../../../src/repositories/types/url.row.js';
 
 describe('UrlRepository', () => {
   let repository: UrlRepository;

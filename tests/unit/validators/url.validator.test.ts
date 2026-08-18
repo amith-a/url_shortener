@@ -4,7 +4,7 @@ import {
   listUrlsQuerySchema,
   urlIdParamSchema,
   urlSchema,
-} from '../../../src/validators/url.validator';
+} from '../../../src/validators/url.validator.js';
 
 describe('url.validator', () => {
   describe('urlSchema', () => {

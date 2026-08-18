@@ -1,9 +1,9 @@
 import { ErrorRequestHandler } from 'express';
 import z, { ZodError } from 'zod';
 
-import { env } from '../config/env';
-import { logger } from '../config/logger';
-import AppError from '../errors/app-error';
+import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
+import AppError from '../errors/app-error.js';
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const context = {

@@ -551,7 +551,7 @@ explicitly requested.
 
 # Part 2 — Current State
 
-_Last updated: 2026-08-17, after Production Hardening and environment configuration test refactoring._
+_Last updated: 2026-08-18, after completing Roadmap Item 14 (Production-Scale Docker & CI/CD)._
 
 This section is a snapshot of what is actually implemented.
 
@@ -921,39 +921,58 @@ Implemented production readiness and operational safeguards:
 
 ## Docker
 
-Docker Compose is used for local PostgreSQL and Redis development.
+Production-scale Docker infrastructure implemented with multi-stage `Dockerfile` (`node:24.18.0-alpine`) containing `base`, `builder`, `migration`, and `runtime` build targets.
 
-The current local environment includes:
-
-```text
-Docker Compose
-├── PostgreSQL
-└── Redis
-```
-
-Redis is provided by `redis:7-alpine` and is exposed on port 6379.
+Separated Compose environments:
+- **`compose.dev.yml`**: Local development infrastructure (`postgres:17` on port `5433:5432`, `redis:7-alpine` on port `6379:6379`) supporting host Node development with hot reload (`npm run dev` and `npm run dev:worker`).
+- **`compose.test.yml`**: Local integration test infrastructure (`postgres`, `redis`, and `test-db-init` container using native `psql` to conditionally create `url_shortener_test` inside PostgreSQL).
+- **`compose.prod.yml`**: Production-like local validation (`postgres`, `redis`, isolated one-shot `migration` service executing `npm run migrate:up`, and non-root `USER node` `api` and `worker` services without fixed container names for horizontal scalability).
 
 ---
 
 ## CI/CD
 
-A complete CI/CD pipeline is not yet implemented.
+Continuous Integration pipeline implemented in `.github/workflows/ci.yml`.
 
-Planned CI checks:
+Automated pipeline triggers on `push` and `pull_request` to `main`:
 
 ```text
-Push
- ↓
-Lint
- ↓
-Typecheck / Build
- ↓
-Unit tests
- ↓
-Integration tests
+Checkout
+   ↓
+Node.js 24.18.0 setup
+   ↓
+npm ci
+   ↓
+npm run format:check
+   ↓
+npm run lint
+   ↓
+npm run typecheck
+   ↓
+npm run test:unit
+   ↓
+Containerized PostgreSQL 17 & Redis 7 readiness checks
+   ↓
+Native psql url_shortener_test creation
+   ↓
+npm run migrate:test
+   ↓
+npm run test:integration
+   ↓
+npm run build
+   ↓
+Docker build & target checks (runtime and migration targets)
 ```
 
-Deployment will be addressed after the application reaches a stable state.
+---
+
+## ESM Runtime Resolution Decision
+
+Explicit `.js` file extensions have been added to relative imports across `src/` and `tests/` to satisfy native Node.js ESM specifier resolution requirements.
+
+As a result:
+- `node dist/server.js` and `node dist/worker.js` build and execute natively without requiring a custom loader or bundler.
+- TypeScript `"module": "ESNext"` and `"moduleResolution": "bundler"` configuration is preserved.
 
 ---
 
@@ -1078,7 +1097,17 @@ Current roadmap:
    - Added invalid / past expiration validation integration tests (`expiresAt` -> 400 Bad Request)
    - Preserved activeDb safety guard (`url_shortener_test`), table truncation cascade, and Redis cleanup safety
 
-14. Docker and CI/CD
+14. ~~Docker containerization and CI/CD pipeline~~
+   Done:
+   - Added multi-stage `Dockerfile` based on Node `24.18.0` (`node:24.18.0-alpine`) with `base`, `builder`, `migration`, and `runtime` build targets.
+   - Added `.dockerignore` excluding dependencies, build outputs, test coverage, logs, `.git`, `.github`, and `.env` secret files.
+   - Separated environment Compose architectures:
+     - `compose.dev.yml`: Local development PostgreSQL (`5433:5432`) and Redis (`6379:6379`) infrastructure for host Node hot reload (`npm run dev`, `npm run dev:worker`).
+     - `compose.test.yml`: Integration test PostgreSQL, Redis, and `test-db-init` (native `psql` container conditionally creating `url_shortener_test`).
+     - `compose.prod.yml`: Production-like local validation running `postgres`, `redis`, isolated one-shot `migration` service (`npm run migrate:up`), and non-root (`USER node`) `api` and `worker` services without fixed container names for horizontal scalability.
+   - Consolidated Compose setup by removing obsolete duplicate files (`docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml`, `docker-compose.prod.yml`, `Dockerfile.api`, `Dockerfile.worker`).
+   - Added GitHub Actions CI workflow (`.github/workflows/ci.yml`) running Node `24.18.0`, Postgres 17 (port 5433), and Redis 7-alpine (port 6379), performing `npm ci`, format check, lint, typecheck, unit tests, native `psql` test DB creation, `migrate:test`, `test:integration`, `build`, and multi-stage `docker build` target checks.
+   - Recorded ESM runtime decision (`node dist/server.js` fails natively with `ERR_MODULE_NOT_FOUND` on extensionless imports; no workaround introduced per guidelines).
 
 15. Deployment / portfolio documentation
 ```
@@ -1088,7 +1117,7 @@ Do not skip ahead through the roadmap unless explicitly requested.
 The immediate next feature is:
 
 ```text
-Docker and CI/CD
+Deployment / portfolio documentation
 ```
 
 ---

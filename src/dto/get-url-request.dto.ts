@@ -1,3 +1,3 @@
-import { GetUrlRequest } from '../validators/url.validator';
+import { GetUrlRequest } from '../validators/url.validator.js';
 
 export type GetUrlRequestDto = GetUrlRequest;

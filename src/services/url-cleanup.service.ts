@@ -1,6 +1,6 @@
-import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface';
-import type { UrlCacheService } from './url-cache.service';
-import { logger } from '../config/logger';
+import type { IUrlRepository } from '../repositories/interfaces/url.repository.interface.js';
+import type { UrlCacheService } from './url-cache.service.js';
+import { logger } from '../config/logger.js';
 
 export class UrlCleanupService {
   constructor(

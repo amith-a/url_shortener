@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { UrlCacheService } from '../../../src/services/url-cache.service';
+import { UrlCacheService } from '../../../src/services/url-cache.service.js';
 import type { Redis } from 'ioredis';
 
 describe('UrlCacheService', () => {

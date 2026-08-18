@@ -1,8 +1,8 @@
 import { Worker, Job } from 'bullmq';
-import { bullRedisConnection } from '../config/redis';
-import { URL_CLEANUP_QUEUE_NAME } from './url-cleanup.queue';
-import type { UrlCleanupService } from '../services/url-cleanup.service';
-import { logger } from '../config/logger';
+import { bullRedisConnection } from '../config/redis.js';
+import { URL_CLEANUP_QUEUE_NAME } from './url-cleanup.queue.js';
+import type { UrlCleanupService } from '../services/url-cleanup.service.js';
+import { logger } from '../config/logger.js';
 
 export function createUrlCleanupWorker(
   cleanupService: UrlCleanupService

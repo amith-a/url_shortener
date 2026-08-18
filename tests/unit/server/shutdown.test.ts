@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
-import pool from '../../../src/config/database';
-import { redis } from '../../../src/config/redis';
-import { gracefulShutdown, resetShutdownStateForTesting } from '../../../src/server';
+import pool from '../../../src/config/database.js';
+import { redis } from '../../../src/config/redis.js';
+import { gracefulShutdown, resetShutdownStateForTesting } from '../../../src/server.js';
 
 describe('gracefulShutdown', () => {
   let mockServer: Server;

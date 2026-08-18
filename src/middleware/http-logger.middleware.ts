@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.js';
 
 const REQUEST_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 

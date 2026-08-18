@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
-import { HealthController } from '../../../src/controllers/health.controller';
-import type { HealthService } from '../../../src/services/health.service';
+import { HealthController } from '../../../src/controllers/health.controller.js';
+import type { HealthService } from '../../../src/services/health.service.js';
 
 describe('HealthController', () => {
   let mockHealthService: HealthService;

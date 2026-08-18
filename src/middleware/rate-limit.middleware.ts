@@ -1,6 +1,6 @@
 import { RequestHandler } from 'express';
-import { env } from '../config/env';
-import { RateLimitService } from '../services/rate-limit.service';
+import { env } from '../config/env.js';
+import { RateLimitService } from '../services/rate-limit.service.js';
 
 export interface RateLimitOptions {
   scope: string;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import pool from '../../../src/config/database';
-import { UrlAnalyticsRepository } from '../../../src/repositories/url-analytics.repository';
+import pool from '../../../src/config/database.js';
+import { UrlAnalyticsRepository } from '../../../src/repositories/url-analytics.repository.js';
 import { QueryResult } from 'pg';
 
 describe('UrlAnalyticsRepository', () => {

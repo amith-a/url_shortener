@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { validate } from '../../../src/middleware/validate.middleware';
+import { validate } from '../../../src/middleware/validate.middleware.js';
 import { Request, RequestHandler, Response } from 'express';
 
 describe('validate.middleware', () => {

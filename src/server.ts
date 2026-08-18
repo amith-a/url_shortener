@@ -1,10 +1,10 @@
 import type { Server } from 'node:http';
-import app from './app';
-import pool from './config/database';
-import { connectWithRetry } from './config/database-connection';
-import { env } from './config/env';
-import { logger } from './config/logger';
-import { redis } from './config/redis';
+import app from './app.js';
+import pool from './config/database.js';
+import { connectWithRetry } from './config/database-connection.js';
+import { env } from './config/env.js';
+import { logger } from './config/logger.js';
+import { redis } from './config/redis.js';
 
 let isShuttingDown = false;
 

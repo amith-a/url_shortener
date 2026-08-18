@@ -1,5 +1,5 @@
 import { pino, LoggerOptions } from 'pino';
-import { env } from './env';
+import { env } from './env.js';
 
 const options: LoggerOptions = {
   level: env.LOG_LEVEL,

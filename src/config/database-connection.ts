@@ -1,5 +1,5 @@
-import pool from './database';
-import { logger } from './logger';
+import pool from './database.js';
+import { logger } from './logger.js';
 
 const MAX_ATTEMPTS = 5;
 const INITIAL_DELAY_MS = 1000;

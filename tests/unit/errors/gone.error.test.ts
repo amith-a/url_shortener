@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GoneError } from '../../../src/errors/gone.error';
-import AppError from '../../../src/errors/app-error';
+import { GoneError } from '../../../src/errors/gone.error.js';
+import AppError from '../../../src/errors/app-error.js';
 
 describe('GoneError', () => {
   it('should create an instance with status code 410 and correct message', () => {

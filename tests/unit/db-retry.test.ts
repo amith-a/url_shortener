@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
-import { connectWithRetry } from '../../src/config/database-connection';
-import { logger } from '../../src/config/logger';
+import { connectWithRetry } from '../../src/config/database-connection.js';
+import { logger } from '../../src/config/logger.js';
 
 describe('connectWithRetry', () => {
   let mockPool: { query: ReturnType<typeof vi.fn> };

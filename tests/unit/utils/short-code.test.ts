@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateShortCode } from '../../../src/utils/short-code';
+import { generateShortCode } from '../../../src/utils/short-code.js';
 
 describe('short-code utility', () => {
   it('should generate a short code of default length (8)', () => {

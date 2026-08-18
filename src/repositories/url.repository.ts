@@ -1,9 +1,9 @@
-import { CreateUrlDto } from '../dto/create-url.dto';
-import pool from '../config/database';
-import { UrlDto } from '../dto/url.dto';
-import { UrlRow } from './types/url.row';
-import AppError from '../errors/app-error';
-import { IUrlRepository } from './interfaces/url.repository.interface';
+import { CreateUrlDto } from '../dto/create-url.dto.js';
+import pool from '../config/database.js';
+import { UrlDto } from '../dto/url.dto.js';
+import { UrlRow } from './types/url.row.js';
+import AppError from '../errors/app-error.js';
+import { IUrlRepository } from './interfaces/url.repository.interface.js';
 
 export class UrlRepository implements IUrlRepository {
   async create(urlData: CreateUrlDto): Promise<UrlDto> {

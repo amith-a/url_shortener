@@ -1,9 +1,9 @@
 import '../../../src/types/express.d.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { requireAuth } from '../../../src/middleware/auth.middleware';
-import { auth } from '../../../src/config/auth';
-import { UnauthorizedError } from '../../../src/errors/unauthorized.error';
+import { requireAuth } from '../../../src/middleware/auth.middleware.js';
+import { auth } from '../../../src/config/auth.js';
+import { UnauthorizedError } from '../../../src/errors/unauthorized.error.js';
 
 describe('requireAuth Middleware', () => {
   let req: Partial<Request>;

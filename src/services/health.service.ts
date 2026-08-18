@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.js';
 
 export interface ReadinessResult {
   healthy: boolean;

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Job } from 'bullmq';
-import type { UrlCleanupService } from '../../../src/services/url-cleanup.service';
+import type { UrlCleanupService } from '../../../src/services/url-cleanup.service.js';
 
 const mockWorkerInstances: Array<{
   name: string;
@@ -32,7 +32,7 @@ vi.mock('bullmq', () => {
   return { Worker: MockWorker };
 });
 
-import { createUrlCleanupWorker } from '../../../src/jobs/url-cleanup.worker';
+import { createUrlCleanupWorker } from '../../../src/jobs/url-cleanup.worker.js';
 
 describe('createUrlCleanupWorker', () => {
   it('should instantiate BullMQ worker and invoke cleanupService.cleanupExpiredUrls in processor', async () => {

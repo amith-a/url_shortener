@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ConflictError } from '../../../src/errors/conflict.error';
-import AppError from '../../../src/errors/app-error';
+import { ConflictError } from '../../../src/errors/conflict.error.js';
+import AppError from '../../../src/errors/app-error.js';
 
 describe('ConflictError', () => {
   it('should create an instance with status code 409 and correct message', () => {

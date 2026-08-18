@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { UrlAnalyticsService } from '../services/url-analytics.service';
+import { UrlAnalyticsService } from '../services/url-analytics.service.js';
 
 export class UrlAnalyticsController {
   constructor(private readonly analyticsService: UrlAnalyticsService) {}

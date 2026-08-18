@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
-import pool from './database';
-import { env } from './env';
+import pool from './database.js';
+import { env } from './env.js';
 
 export const auth = betterAuth({
   database: pool,

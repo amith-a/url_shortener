@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: url_shortener
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.18.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check code formatting
+        run: npm run format:check
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Create test database using native psql
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -p 5433 -U postgres -d url_shortener -v ON_ERROR_STOP=1 -c "SELECT 'CREATE DATABASE url_shortener_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'url_shortener_test')\gexec"
+
+      - name: Run database migrations (test)
+        run: npm run migrate:test
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Build TypeScript project
+        run: npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (runtime target)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runtime
+          push: false
+          tags: url-shortener-runtime:ci
+
+      - name: Build Docker Image (migration target)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: migration
+          push: false
+          tags: url-shortener-migration:ci
+
+      - name: Validate Production Compose Config
+        run: docker compose -f compose.prod.yml config

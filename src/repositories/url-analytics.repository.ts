@@ -1,5 +1,5 @@
-import pool from '../config/database';
-import { IUrlAnalyticsRepository } from './interfaces/url-analytics.repository.interface';
+import pool from '../config/database.js';
+import { IUrlAnalyticsRepository } from './interfaces/url-analytics.repository.interface.js';
 
 export class UrlAnalyticsRepository implements IUrlAnalyticsRepository {
   async recordClick(urlId: string): Promise<void> {

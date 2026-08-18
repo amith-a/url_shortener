@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis';
-import { logger } from '../config/logger';
+import { logger } from '../config/logger.js';
 
 export interface RateLimitResult {
   allowed: boolean;

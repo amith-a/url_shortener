@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import app from '../../src/app';
-import pool from '../../src/config/database';
+import app from '../../src/app.js';
+import pool from '../../src/config/database.js';
 import {
   cacheService,
   cleanupService,
   repository,
-} from '../../src/bootstrap/url.bootstrap';
+} from '../../src/bootstrap/url.bootstrap.js';
 
 async function safeCleanupUrlTables() {
   const { rows } = await pool.query('SELECT current_database()');

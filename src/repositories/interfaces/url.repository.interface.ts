@@ -1,5 +1,5 @@
-import { CreateUrlDto } from '../../dto/create-url.dto';
-import { UrlDto } from '../../dto/url.dto';
+import { CreateUrlDto } from '../../dto/create-url.dto.js';
+import { UrlDto } from '../../dto/url.dto.js';
 
 export interface IUrlRepository {
   create(urlData: CreateUrlDto): Promise<UrlDto>;

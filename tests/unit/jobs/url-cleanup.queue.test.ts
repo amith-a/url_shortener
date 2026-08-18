@@ -26,7 +26,7 @@ import {
   setupUrlCleanupSchedule,
   URL_CLEANUP_QUEUE_NAME,
   URL_CLEANUP_SCHEDULER_ID,
-} from '../../../src/jobs/url-cleanup.queue';
+} from '../../../src/jobs/url-cleanup.queue.js';
 
 describe('url-cleanup queue & schedule', () => {
   it('should create Queue with url-cleanup name', () => {

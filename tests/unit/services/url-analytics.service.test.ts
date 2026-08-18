@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { UrlAnalyticsService } from '../../../src/services/url-analytics.service';
-import { IUrlAnalyticsRepository } from '../../../src/repositories/interfaces/url-analytics.repository.interface';
-import { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
-import { UrlDto } from '../../../src/dto/url.dto';
+import { UrlAnalyticsService } from '../../../src/services/url-analytics.service.js';
+import { IUrlAnalyticsRepository } from '../../../src/repositories/interfaces/url-analytics.repository.interface.js';
+import { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface.js';
+import { UrlDto } from '../../../src/dto/url.dto.js';
 
 describe('UrlAnalyticsService Unit Tests', () => {
   const mockAnalyticsRepo: IUrlAnalyticsRepository = {

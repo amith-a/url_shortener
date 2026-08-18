@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import app from '../../src/app';
-import pool from '../../src/config/database';
+import app from '../../src/app.js';
+import pool from '../../src/config/database.js';
 
 async function safeCleanupAuthTables() {
   const { rows } = await pool.query('SELECT current_database()');

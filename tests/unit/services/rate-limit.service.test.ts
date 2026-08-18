@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { RateLimitService } from '../../../src/services/rate-limit.service';
+import { RateLimitService } from '../../../src/services/rate-limit.service.js';
 
 describe('RateLimitService', () => {
   let mockRedis: { eval: ReturnType<typeof vi.fn> };

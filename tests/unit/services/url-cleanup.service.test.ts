@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UrlCleanupService } from '../../../src/services/url-cleanup.service';
-import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
-import type { UrlCacheService } from '../../../src/services/url-cache.service';
+import { UrlCleanupService } from '../../../src/services/url-cleanup.service.js';
+import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface.js';
+import type { UrlCacheService } from '../../../src/services/url-cache.service.js';
 
 describe('UrlCleanupService', () => {
   let service: UrlCleanupService;

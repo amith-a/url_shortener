@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 import { fromNodeHeaders } from 'better-auth/node';
-import { auth } from '../config/auth';
-import { UnauthorizedError } from '../errors/unauthorized.error';
+import { auth } from '../config/auth.js';
+import { UnauthorizedError } from '../errors/unauthorized.error.js';
 
 export async function requireAuth<
   P = ParamsDictionary,

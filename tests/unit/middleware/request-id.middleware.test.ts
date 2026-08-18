@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { requestIdMiddleware } from '../../../src/middleware/request-id.middleware';
+import { requestIdMiddleware } from '../../../src/middleware/request-id.middleware.js';
 
 describe('requestIdMiddleware', () => {
   let mockReq: Partial<Request>;

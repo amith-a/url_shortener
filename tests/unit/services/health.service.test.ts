@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
-import { HealthService } from '../../../src/services/health.service';
+import { HealthService } from '../../../src/services/health.service.js';
 
 describe('HealthService', () => {
   let mockPool: Pool;

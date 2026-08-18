@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { UrlService } from '../../../src/services/url.service';
-import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface';
-import type { UrlCacheService } from '../../../src/services/url-cache.service';
-import type { UrlAnalyticsService } from '../../../src/services/url-analytics.service';
+import { UrlService } from '../../../src/services/url.service.js';
+import type { IUrlRepository } from '../../../src/repositories/interfaces/url.repository.interface.js';
+import type { UrlCacheService } from '../../../src/services/url-cache.service.js';
+import type { UrlAnalyticsService } from '../../../src/services/url-analytics.service.js';
 
 describe('UrlService', () => {
   let repository: IUrlRepository;
