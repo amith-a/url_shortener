@@ -8,119 +8,196 @@ on:
 
 jobs:
   ci:
-    name: Continuous Integration
     runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      PORT: 3001
+      LOG_LEVEL: error
+
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5433
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: url_shortener
+      DATABASE_URL: postgres://postgres:postgres@localhost:5433/url_shortener_test
+
+      BETTER_AUTH_SECRET: test-secret-key-at-least-32-chars-long-for-testing
+      BETTER_AUTH_URL: http://localhost:3001
+
+      REDIS_URL: redis://localhost:6379/1
+      REDIS_URL_TTL: 300
+
+      RATE_LIMIT_MAX: 100
+      RATE_LIMIT_WINDOW_SECONDS: 60
+      URL_CLEANUP_INTERVAL_SECONDS: 60
+
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:5173
+      REQUEST_TIMEOUT_MS: 10000
+      SHUTDOWN_TIMEOUT_MS: 10000
 
     services:
       postgres:
         image: postgres:17
-
         env:
-          NODE_ENV: test
-          PORT: 3001
-          LOG_LEVEL: error
-
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5433
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: url_shortener_test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5433/url_shortener_test
-
-          BETTER_AUTH_SECRET: test-secret-key-at-least-32-chars-long-for-testing
-          BETTER_AUTH_URL: http://localhost:3001
-
-          REDIS_URL: redis://localhost:6379/1
-          REDIS_URL_TTL: 300
-
-          RATE_LIMIT_MAX: 100
-          RATE_LIMIT_WINDOW_SECONDS: 60
-
-          URL_CLEANUP_INTERVAL_SECONDS: 60
-
-          CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:5173
-
-          REQUEST_TIMEOUT_MS: 10000
-          SHUTDOWN_TIMEOUT_MS: 10000
-
+          POSTGRES_DB: url_shortener
         ports:
           - 5433:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd="pg_isready -U postgres -d url_shortener"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
 
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 24.18.0
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.18.0'
-          cache: 'npm'
+          node-version: 24.18.0
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Check code formatting
+      - name: Create CI test environment
+        run: |
+          cat > .env.test <<'EOF'
+          PORT=3001
+          LOG_LEVEL=error
+          NODE_ENV=test
+          DATABASE_HOST=localhost
+          DATABASE_PORT=5433
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_DB=url_shortener_test
+          DATABASE_URL=postgres://postgres:postgres@localhost:5433/url_shortener_test
+          BETTER_AUTH_SECRET=test-secret-key-at-least-32-chars-long-for-testing
+          BETTER_AUTH_URL=http://localhost:3001
+          REDIS_URL=redis://localhost:6379/1
+          REDIS_URL_TTL=300
+          RATE_LIMIT_MAX=100
+          RATE_LIMIT_WINDOW_SECONDS=60
+          URL_CLEANUP_INTERVAL_SECONDS=60
+          CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:5173
+          REQUEST_TIMEOUT_MS=10000
+          SHUTDOWN_TIMEOUT_MS=10000
+          EOF
+
+      - name: Format check
         run: npm run format:check
 
-      - name: Run linter
+      - name: Lint
         run: npm run lint
 
-      - name: Run TypeScript typecheck
+      - name: Typecheck
         run: npm run typecheck
 
-      - name: Run unit tests
+      - name: Unit tests
         run: npm run test:unit
 
-      - name: Create test database using native psql
-        env:
-          PGPASSWORD: postgres
+      - name: Wait for PostgreSQL
         run: |
-          psql -h localhost -p 5433 -U postgres -d url_shortener -v ON_ERROR_STOP=1 -c "SELECT 'CREATE DATABASE url_shortener_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'url_shortener_test')\gexec"
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5433 -U postgres -d url_shortener; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
 
-      - name: Run database migrations (test)
+      - name: Wait for Redis
+        run: |
+          for i in {1..30}; do
+            if redis-cli -h localhost -p 6379 ping | grep -q PONG; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=postgres psql \
+            -h localhost \
+            -p 5433 \
+            -U postgres \
+            -d url_shortener \
+            -v ON_ERROR_STOP=1 \
+            -tc "SELECT 1 FROM pg_database WHERE datname = 'url_shortener_test'" |
+            grep -q 1 ||
+          PGPASSWORD=postgres psql \
+            -h localhost \
+            -p 5433 \
+            -U postgres \
+            -d url_shortener \
+            -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE url_shortener_test"
+
+      - name: Run test migrations
         run: npm run migrate:test
 
-      - name: Run integration tests
+      - name: Integration tests
         run: npm run test:integration
 
       - name: Build TypeScript project
         run: npm run build
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Validate Development Compose
+        run: docker compose -f compose.dev.yml config
 
-      - name: Build Docker Image (runtime target)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: runtime
-          push: false
-          tags: url-shortener-runtime:ci
+      - name: Validate Test Compose
+        run: docker compose -f compose.test.yml config
 
-      - name: Build Docker Image (migration target)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: migration
-          push: false
-          tags: url-shortener-migration:ci
-
-      - name: Validate Production Compose Config
+      - name: Validate Production Compose
         run: docker compose -f compose.prod.yml config
+
+      - name: Build Docker runtime target
+        run: docker build --target runtime -t url-shortener-runtime:ci .
+
+      - name: Build Docker migration target
+        run: docker build --target migration -t url-shortener-migration:ci .
+
+      - name: Start production-like Compose environment
+        run: docker compose -f compose.prod.yml up -d
+
+      - name: Verify production-like services
+        run: docker compose -f compose.prod.yml ps -a
+
+      - name: Verify API health
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://localhost:3000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker compose -f compose.prod.yml logs
+          exit 1
+
+      - name: Verify API readiness
+        run: curl --fail http://localhost:3000/ready
+
+      - name: Verify migration completed
+        run: |
+          status=$(docker compose -f compose.prod.yml ps -a -q migration | xargs docker inspect -f '{{.State.ExitCode}}')
+          test "$status" = "0"
+
+      - name: Stop production-like Compose environment
+        if: always()
+        run: docker compose -f compose.prod.yml down -v
