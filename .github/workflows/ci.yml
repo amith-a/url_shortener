@@ -134,7 +134,9 @@ jobs:
 
       - name: Create test database
         run: |
-          docker exec ${{ job.services.postgres.id }} psql -U postgres -d url_shortener -v ON_ERROR_STOP=1 -c "SELECT 'CREATE DATABASE url_shortener_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'url_shortener_test')\gexec"
+          docker exec -i ${{ job.services.postgres.id }} psql -U postgres -d url_shortener -v ON_ERROR_STOP=1 <<'EOF'
+          SELECT 'CREATE DATABASE url_shortener_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'url_shortener_test')\gexec
+          EOF
 
       - name: Run test migrations
         run: npm run migrate:test
