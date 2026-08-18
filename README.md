@@ -223,18 +223,67 @@ docker compose -f compose.prod.yml down -v
 
 ## ⚙️ Docker Architecture
 
-The project uses a multi-stage `Dockerfile` (`node:24.18.0-alpine`) with distinct build targets:
+The project features a production-scale containerization setup using a multi-stage [`Dockerfile`](file:///d:/code/url_shortner_exp/Dockerfile) based on `node:24.18.0-alpine` and environment-separated Compose files.
 
-1. `base`: Installs minimal system dependencies and copies `package.json`.
-2. `builder`: Installs all dependencies (including dev dependencies) and compiles TypeScript to `./dist`.
-3. `migration`: Lightweight image (`npm ci --include=dev`) for running idempotent database migrations (`npm run migrate:up`).
-4. `runtime`: Hardened production image (`npm ci --only=production`, compiled `./dist` code, running as non-root `USER node`).
+### 1. Multi-Stage Build Targets
 
-### Separated Compose Files
+```text
+node:24.18.0-alpine
+        │
+        ▼
+   [ base ] ──► Base system packages & package.json
+        │
+        ├───────────────────────────────┐
+        ▼                               ▼
+   [ builder ]                     [ migration ]
+   Compiles TypeScript             Dev dependencies & node-pg-migrate
+   Output: ./dist                  Runs: npm run migrate:up
+        │
+        ▼
+   [ runtime ]
+   Production dependencies only (npm ci --only=production)
+   Runs as non-root: USER node
+   Executes: node dist/server.js / node dist/worker.js
+```
 
-- **`compose.dev.yml`**: Runs PostgreSQL (`5433:5432`) and Redis (`6379:6379`) infrastructure for local host development.
-- **`compose.test.yml`**: Runs isolated PostgreSQL, Redis, and `test-db-init` container creating `url_shortener_test` for local integration tests.
-- **`compose.prod.yml`**: Runs the complete stack (PostgreSQL, Redis, isolated one-shot `migration` service, `api`, and `worker` containers running as non-root `USER node`).
+- **`base`**: Installs essential system libraries, sets workdir to `/app`, and copies `package*.json`.
+- **`builder`**: Installs full dependency tree (including TypeScript compiler) and builds project output to `./dist`.
+- **`migration`**: Standalone runner image (`npm ci --include=dev`) used by the one-shot Compose `migration` service to execute `npm run migrate:up`.
+- **`runtime`**: Hardened production image containing only production dependencies and compiled `./dist` JS files. Runs securely as unprivileged `USER node`.
+
+---
+
+### 2. Separated Compose Environments
+
+| Environment File | Purpose | Services Included | Port Mappings |
+| :--- | :--- | :--- | :--- |
+| **`compose.dev.yml`** | Local host development with hot reload | `postgres`, `redis` | `5433:5432`, `6379:6379` |
+| **`compose.test.yml`** | Isolated integration test database initialization | `postgres`, `redis`, `test-db-init` | `5433:5432`, `6379:6379` |
+| **`compose.prod.yml`** | Production-like local stack validation | `postgres`, `redis`, `migration`, `api`, `worker` | `3000:3000` |
+
+---
+
+### 3. Docker CLI Quick Reference
+
+```bash
+# Build specific multi-stage target manually
+docker build --target runtime -t url-shortener:prod .
+docker build --target migration -t url-shortener:migration .
+
+# Local Development (Infrastructure Containers + Host Dev Server)
+docker compose -f compose.dev.yml up -d
+docker compose -f compose.dev.yml down
+
+# Local Integration Testing Infrastructure
+docker compose -f compose.test.yml up -d
+docker compose -f compose.test.yml down -v
+
+# Production-Like Environment Validation
+docker compose -f compose.prod.yml up -d --build
+docker compose -f compose.prod.yml ps -a
+docker compose -f compose.prod.yml logs -f api
+docker compose -f compose.prod.yml down -v
+```
 
 ---
 
