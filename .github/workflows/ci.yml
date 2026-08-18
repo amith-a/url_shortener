@@ -74,6 +74,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ------------------------------------------------------------
+      # Test environment
+      # ------------------------------------------------------------
+
       - name: Create CI test environment
         run: |
           cat > .env.test <<'EOF'
@@ -110,6 +114,10 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # ------------------------------------------------------------
+      # Test database
+      # ------------------------------------------------------------
+
       - name: Wait for PostgreSQL
         run: |
           for i in {1..30}; do
@@ -118,6 +126,7 @@ jobs:
             fi
             sleep 2
           done
+
           exit 1
 
       - name: Create test database
@@ -144,23 +153,20 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
 
+      # ------------------------------------------------------------
+      # Application build
+      # ------------------------------------------------------------
+
       - name: Build TypeScript project
         run: npm run build
 
-      - name: Validate Development Compose
-        run: docker compose -f compose.dev.yml config
-
-      - name: Validate Test Compose
-        run: docker compose -f compose.test.yml config
-
-      - name: Validate Production Compose
-        run: docker compose -f compose.prod.yml config
-
-      - name: Build Docker runtime target
-        run: docker build --target runtime -t url-shortener-runtime:ci .
-
-      - name: Build Docker migration target
-        run: docker build --target migration -t url-shortener-migration:ci .
+      # ------------------------------------------------------------
+      # Production-like Compose environment
+      #
+      # Compose files expect .env.
+      # This file is created only inside the CI runner and is never
+      # committed to the repository.
+      # ------------------------------------------------------------
 
       - name: Create CI production Compose environment
         run: |
@@ -192,6 +198,33 @@ jobs:
           SHUTDOWN_TIMEOUT_MS=10000
           EOF
 
+      # ------------------------------------------------------------
+      # Compose validation
+      # ------------------------------------------------------------
+
+      - name: Validate Development Compose
+        run: docker compose -f compose.dev.yml config
+
+      - name: Validate Test Compose
+        run: docker compose -f compose.test.yml config
+
+      - name: Validate Production Compose
+        run: docker compose -f compose.prod.yml config
+
+      # ------------------------------------------------------------
+      # Docker images
+      # ------------------------------------------------------------
+
+      - name: Build Docker runtime target
+        run: docker build --target runtime -t url-shortener-runtime:ci .
+
+      - name: Build Docker migration target
+        run: docker build --target migration -t url-shortener-migration:ci .
+
+      # ------------------------------------------------------------
+      # Production-like Compose runtime verification
+      # ------------------------------------------------------------
+
       - name: Start production-like Compose environment
         run: docker compose -f compose.prod.yml up -d
 
@@ -204,6 +237,7 @@ jobs:
             if curl --fail --silent http://localhost:3000/health; then
               exit 0
             fi
+
             sleep 2
           done
 
@@ -217,6 +251,10 @@ jobs:
         run: |
           status=$(docker compose -f compose.prod.yml ps -a -q migration | xargs docker inspect -f '{{.State.ExitCode}}')
           test "$status" = "0"
+
+      # ------------------------------------------------------------
+      # Cleanup
+      # ------------------------------------------------------------
 
       - name: Stop production-like Compose environment
         if: always()
