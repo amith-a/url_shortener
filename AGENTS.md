@@ -1107,7 +1107,7 @@ Current roadmap:
      - `compose.prod.yml`: Production-like local validation running `postgres`, `redis`, isolated one-shot `migration` service (`npm run migrate:up`), and non-root (`USER node`) `api` and `worker` services without fixed container names for horizontal scalability.
    - Consolidated Compose setup by removing obsolete duplicate files (`docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml`, `docker-compose.prod.yml`, `Dockerfile.api`, `Dockerfile.worker`).
    - Added GitHub Actions CI workflow (`.github/workflows/ci.yml`) running Node `24.18.0`, Postgres 17 (port 5433), and Redis 7-alpine (port 6379), performing `npm ci`, format check, lint, typecheck, unit tests, native `psql` test DB creation, `migrate:test`, `test:integration`, `build`, and multi-stage `docker build` target checks.
-   - Recorded ESM runtime decision (`node dist/server.js` fails natively with `ERR_MODULE_NOT_FOUND` on extensionless imports; no workaround introduced per guidelines).
+   - Added explicit `.js` relative import extensions so `node dist/server.js` and `node dist/worker.js` build and execute natively without custom loaders or bundlers.
 
 15. Deployment / portfolio documentation
 ```
