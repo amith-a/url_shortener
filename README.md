@@ -30,8 +30,9 @@ A production-style URL Shortener backend built with **Node.js**, **TypeScript**,
 | **Language** | TypeScript (ESNext / ESM) |
 | **Framework** | Express 5 |
 | **Auth** | Better Auth |
-| **Database** | PostgreSQL 17 |
-| **Driver** | `pg` |
+| **Databases** | PostgreSQL 17, MongoDB 7 (`mongodb` native driver) |
+| **Database Selection** | `DB_PROVIDER=postgres` \| `mongodb` |
+| **Driver** | `pg`, `mongodb` |
 | **Cache & Store** | Redis 7 (`ioredis`) |
 | **Background Jobs** | BullMQ |
 | **Migrations** | `node-pg-migrate` |

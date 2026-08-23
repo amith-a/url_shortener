@@ -2,6 +2,8 @@ import type { Server } from 'node:http';
 import app from './app.js';
 import pool from './config/database.js';
 import { connectWithRetry } from './config/database-connection.js';
+import { connectMongoWithRetry, closeMongo } from './config/mongo.js';
+import { ensureMongoIndexes } from './repositories/mongo/index.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { redis } from './config/redis.js';
@@ -53,11 +55,15 @@ export async function gracefulShutdown(
     });
   });
 
-  try {
-    await pool.end();
-    logger.info('PostgreSQL pool drained cleanly');
-  } catch (err) {
-    logger.error({ err }, 'Error draining PostgreSQL pool');
+  if (env.DB_PROVIDER === 'mongodb') {
+    await closeMongo();
+  } else {
+    try {
+      await pool.end();
+      logger.info('PostgreSQL pool drained cleanly');
+    } catch (err) {
+      logger.error({ err }, 'Error draining PostgreSQL pool');
+    }
   }
 
   try {
@@ -74,10 +80,15 @@ export async function gracefulShutdown(
 }
 
 async function bootstrap() {
-  await connectWithRetry();
+  if (env.DB_PROVIDER === 'mongodb') {
+    await connectMongoWithRetry();
+    await ensureMongoIndexes();
+  } else {
+    await connectWithRetry();
+  }
 
   const server = app.listen(env.PORT, () => {
-    logger.info(`Server running on port ${env.PORT}`);
+    logger.info(`Server running on port ${env.PORT} (${env.DB_PROVIDER} mode)`);
   });
 
   process.on('SIGTERM', () => void gracefulShutdown(server, 'SIGTERM'));

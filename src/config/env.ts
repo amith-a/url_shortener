@@ -19,6 +19,10 @@ export const envSchema = z
     POSTGRES_PASSWORD: z.string(),
     DATABASE_URL: z.string().min(8),
 
+    DB_PROVIDER: z.enum(['postgres', 'mongodb']).default('postgres'),
+    MONGO_URI: z.string().min(1).default('mongodb://localhost:27017'),
+    MONGO_DB_NAME: z.string().min(1).default('url_shortener'),
+
     BETTER_AUTH_SECRET: z
       .string()
       .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long'),

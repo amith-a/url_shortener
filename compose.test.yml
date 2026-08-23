@@ -29,6 +29,19 @@ services:
       timeout: 5s
       retries: 5
 
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', 'db.adminCommand("ping").ok']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   test-db-init:
     image: postgres:17
     depends_on:

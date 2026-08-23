@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import { logger } from '../config/logger.js';
+import { env } from '../config/env.js';
+import { pingMongo } from '../config/mongo.js';
 
 export interface ReadinessResult {
   healthy: boolean;
@@ -18,11 +20,15 @@ export class HealthService {
     let dbHealthy = false;
     let redisHealthy = false;
 
-    try {
-      await this.pool.query('SELECT 1');
-      dbHealthy = true;
-    } catch (err) {
-      logger.error({ err }, 'Readiness check failed: PostgreSQL unavailable');
+    if (env.DB_PROVIDER === 'mongodb') {
+      dbHealthy = await pingMongo();
+    } else {
+      try {
+        await this.pool.query('SELECT 1');
+        dbHealthy = true;
+      } catch (err) {
+        logger.error({ err }, 'Readiness check failed: PostgreSQL unavailable');
+      }
     }
 
     try {

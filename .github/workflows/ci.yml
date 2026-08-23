@@ -22,6 +22,10 @@ jobs:
       POSTGRES_DB: url_shortener
       DATABASE_URL: postgres://postgres:postgres@localhost:5433/url_shortener_test
 
+      DB_PROVIDER: postgres
+      MONGO_URI: mongodb://localhost:27017
+      MONGO_DB_NAME: url_shortener_test
+
       BETTER_AUTH_SECRET: test-secret-key-at-least-32-chars-long-for-testing
       BETTER_AUTH_URL: http://localhost:3001
 
@@ -61,6 +65,16 @@ jobs:
           --health-timeout=5s
           --health-retries=10
 
+      mongo:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,6 +104,9 @@ jobs:
           POSTGRES_PASSWORD=postgres
           POSTGRES_DB=url_shortener_test
           DATABASE_URL=postgres://postgres:postgres@localhost:5433/url_shortener_test
+          DB_PROVIDER=postgres
+          MONGO_URI=mongodb://localhost:27017
+          MONGO_DB_NAME=url_shortener_test
           BETTER_AUTH_SECRET=test-secret-key-at-least-32-chars-long-for-testing
           BETTER_AUTH_URL=http://localhost:3001
           REDIS_URL=redis://localhost:6379/1
@@ -181,6 +198,10 @@ jobs:
           POSTGRES_PASSWORD=postgres
           POSTGRES_DB=url_shortener
           DATABASE_URL=postgres://postgres:postgres@postgres:5432/url_shortener
+
+          DB_PROVIDER=postgres
+          MONGO_URI=mongodb://mongo:27017
+          MONGO_DB_NAME=url_shortener
 
           BETTER_AUTH_SECRET=test-secret-key-at-least-32-chars-long-for-testing
           BETTER_AUTH_URL=http://localhost:3000

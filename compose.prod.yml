@@ -27,6 +27,19 @@ services:
     networks:
       - url_shortener_net
 
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - mongo_prod_data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', 'db.adminCommand("ping").ok']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - url_shortener_net
+
   migration:
     build:
       context: .
@@ -61,10 +74,13 @@ services:
       DATABASE_PORT: 5432
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+      MONGO_URI: mongodb://mongo:27017
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
@@ -86,10 +102,13 @@ services:
       DATABASE_PORT: 5432
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+      MONGO_URI: mongodb://mongo:27017
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
@@ -99,6 +118,7 @@ services:
 volumes:
   postgres_prod_data:
   redis_prod_data:
+  mongo_prod_data:
 
 networks:
   url_shortener_net:
